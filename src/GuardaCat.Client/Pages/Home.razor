@@ -1,0 +1,48 @@
+@page "/"
+
+<PageTitle>Guarda.cat — Comunidad para compartir lo que sabes</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="home-shell">
+    <section class="intro" aria-labelledby="intro-title">
+        <MudText Typo="Typo.overline" Class="eyebrow">CONOCIMIENTO COMPARTIDO</MudText>
+        <MudText HtmlTag="h1" Typo="Typo.h1" id="intro-title" Class="intro-title">
+            Ideas que merece<br />la pena guardar.
+        </MudText>
+        <MudText Typo="Typo.subtitle1" Class="intro-copy">
+            Una comunidad para publicar, conversar y volver a aquello que te hizo pensar.
+        </MudText>
+    </section>
+
+    <MudDivider Class="section-divider" />
+
+    <section class="content-grid" aria-labelledby="latest-title">
+        <div class="feed-column">
+            <div class="section-heading">
+                <MudText HtmlTag="h2" Typo="Typo.h5" id="latest-title">Publicaciones recientes</MudText>
+                <MudText Typo="Typo.caption">Ordenadas por fecha</MudText>
+            </div>
+
+            <div class="empty-state">
+                <MudText Typo="Typo.h4">Todavía no hay publicaciones.</MudText>
+                <MudText Typo="Typo.body1">
+                    La base de Guarda.cat ya está preparada. El contenido llegará en la fase del MVP.
+                </MudText>
+                <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">
+                    Fase 1 en curso
+                </MudChip>
+            </div>
+        </div>
+
+        <aside class="topics-column" aria-labelledby="topics-title">
+            <MudText HtmlTag="h2" Typo="Typo.overline" id="topics-title">TEMAS INICIALES</MudText>
+            <div class="topic-list">
+                <span>AWS</span>
+                <span>.NET</span>
+                <span>Blazor</span>
+                <span>Docker</span>
+                <span>Terraform</span>
+                <span>Bases de datos</span>
+            </div>
+        </aside>
+    </section>
+</MudContainer>

@@ -1,0 +1,17 @@
+<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <ErrorBoundary>
+            <ChildContent>
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            </ChildContent>
+            <ErrorContent Context="exception">
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Text">
+                        No hemos podido mostrar esta página. Vuelve a intentarlo.
+                    </MudAlert>
+                </LayoutView>
+            </ErrorContent>
+        </ErrorBoundary>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+</Router>

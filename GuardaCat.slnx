@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GuardaCat.Client/GuardaCat.Client.csproj" />
+    <Project Path="src/GuardaCat.Contracts/GuardaCat.Contracts.csproj" />
+    <Project Path="src/GuardaCat.Server/GuardaCat.Server.csproj" />
+  </Folder>
+</Solution>
