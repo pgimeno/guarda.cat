@@ -7,3 +7,36 @@
 *.suo
 TestResults/
 artifacts/
+
+# .NET build outputs
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# Tool and test outputs
+project.lock.json
+project.fragment.lock.json
+ScaffoldingReadMe.txt
+TestResult.xml
+nunit-*.xml
+*.VisualState.xml
+TestResults/
+CodeCoverage/
+*.binlog
+
+# NuGet packages
+*.nupkg
+*.snupkg
+
+# Temporary files
+~$*
+*~
