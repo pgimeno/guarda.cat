@@ -1,6 +1,6 @@
 # Guarda.cat
 
-Plataforma comunitaria para publicar artículos en Markdown, conversar y organizar contenido técnico.
+Comunidad generalista en catalán para publicar, conversar y descubrir perspectivas sobre Cataluña y el resto del mundo.
 
 ## Estado
 

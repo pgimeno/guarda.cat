@@ -1,48 +1,119 @@
 @page "/"
 
-<PageTitle>Guarda.cat — Comunidad para compartir lo que sabes</PageTitle>
+<PageTitle>Publicacions — Guarda.cat</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="home-shell">
-    <section class="intro" aria-labelledby="intro-title">
-        <MudText Typo="Typo.overline" Class="eyebrow">CONOCIMIENTO COMPARTIDO</MudText>
-        <MudText HtmlTag="h1" Typo="Typo.h1" id="intro-title" Class="intro-title">
-            Ideas que merece<br />la pena guardar.
-        </MudText>
-        <MudText Typo="Typo.subtitle1" Class="intro-copy">
-            Una comunidad para publicar, conversar y volver a aquello que te hizo pensar.
-        </MudText>
-    </section>
+<div class="community-workspace">
+    <aside class="left-rail" aria-label="Seccions de Guarda.cat">
+        <nav class="rail-nav">
+            <a href="/#feed-title" class="rail-link is-active" aria-current="page">
+                <span class="rail-symbol" aria-hidden="true">G</span>
+                Portada
+            </a>
+            <a href="/#temes" class="rail-link">
+                <span class="rail-symbol" aria-hidden="true">#</span>
+                Temes
+            </a>
+            <a href="/#comunitat" class="rail-link">
+                <span class="rail-symbol" aria-hidden="true">+</span>
+                Comunitat
+            </a>
+        </nav>
 
-    <MudDivider Class="section-divider" />
-
-    <section class="content-grid" aria-labelledby="latest-title">
-        <div class="feed-column">
-            <div class="section-heading">
-                <MudText HtmlTag="h2" Typo="Typo.h5" id="latest-title">Publicaciones recientes</MudText>
-                <MudText Typo="Typo.caption">Ordenadas por fecha</MudText>
-            </div>
-
-            <div class="empty-state">
-                <MudText Typo="Typo.h4">Todavía no hay publicaciones.</MudText>
-                <MudText Typo="Typo.body1">
-                    La base de Guarda.cat ya está preparada. El contenido llegará en la fase del MVP.
-                </MudText>
-                <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">
-                    Fase 1 en curso
-                </MudChip>
-            </div>
+        <div class="rail-context">
+            <p class="rail-label">Guarda.cat</p>
+            <p>Converses en català sobre el que passa aquí i arreu.</p>
         </div>
+    </aside>
 
-        <aside class="topics-column" aria-labelledby="topics-title">
-            <MudText HtmlTag="h2" Typo="Typo.overline" id="topics-title">TEMAS INICIALES</MudText>
-            <div class="topic-list">
-                <span>AWS</span>
-                <span>.NET</span>
-                <span>Blazor</span>
-                <span>Docker</span>
-                <span>Terraform</span>
-                <span>Bases de datos</span>
+    <section class="feed-column" aria-labelledby="feed-title">
+        <header class="feed-heading">
+            <div>
+                <p class="eyebrow">PORTADA</p>
+                <h1 id="feed-title">Publicacions</h1>
             </div>
-        </aside>
+            <p class="feed-intro">Actualitat, preguntes i descobertes compartides per la comunitat.</p>
+        </header>
+
+        <section class="feed-frame" aria-label="Llista de publicacions">
+            <div class="feed-toolbar">
+                <div class="sort-tabs" aria-label="Ordre de les publicacions">
+                    <span class="sort-tab is-active">Més recents</span>
+                </div>
+                <span class="feed-count">0 publicacions</span>
+            </div>
+
+            <div class="empty-feed">
+                <span class="empty-feed-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M5.75 6.5h12.5v8.25H10l-3.75 3v-3H5.75V6.5Z" />
+                        <path d="M9 10.25h6M9 12.5h4" />
+                    </svg>
+                </span>
+                <h2>Encara no hi ha publicacions</h2>
+                <p>Quan la comunitat comenci a publicar, les converses apareixeran aquí.</p>
+                <a href="/#temes" class="secondary-action">Explora els temes <span aria-hidden="true">→</span></a>
+            </div>
+
+            <div class="feed-footnote">
+                <span class="status-dot" aria-hidden="true"></span>
+                Lectura oberta a tothom
+            </div>
+        </section>
     </section>
-</MudContainer>
+
+    <aside class="right-rail" aria-label="Informació de la comunitat">
+        <section id="comunitat" class="community-panel anchor-section" aria-labelledby="community-title" tabindex="-1">
+            <div class="community-panel-header">
+                <span class="community-monogram" aria-hidden="true">G</span>
+                <span>Comunitat</span>
+            </div>
+            <div class="community-panel-body">
+                <h2 id="community-title">Guarda.cat</h2>
+                <p>Un espai generalista en català per entendre Catalunya, mirar el món i compartir perspectives.</p>
+                <dl class="community-facts">
+                    <div>
+                        <dt>Accés</dt>
+                        <dd>Lectura pública</dd>
+                    </div>
+                    <div>
+                        <dt>Àmbit</dt>
+                        <dd>Catalunya i el món</dd>
+                    </div>
+                </dl>
+            </div>
+        </section>
+
+        <section id="temes" class="topics-panel anchor-section" aria-labelledby="topics-title" tabindex="-1">
+            <div class="panel-heading">
+                <h2 id="topics-title">Temes</h2>
+                <span>Per explorar</span>
+            </div>
+            <div class="topic-list" role="list">
+                @foreach (var topic in Topics)
+                {
+                    <div @key="topic.Name" class="topic-row" role="listitem">
+                        <span class="topic-mark" aria-hidden="true">#</span>
+                        <div>
+                            <strong>@topic.Name</strong>
+                            <span>@topic.Description</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <footer class="community-footer">Guarda.cat · Fet per conversar</footer>
+    </aside>
+</div>
+
+@code {
+    private static readonly (string Name, string Description)[] Topics =
+    [
+        ("Actualitat", "Catalunya i el que passa al món"),
+        ("Cultura", "Llibres, cinema, música i arts"),
+        ("Ciència", "Idees i descobertes"),
+        ("Esports", "Competició, equips i afició"),
+        ("Viatges", "Llocs, rutes i experiències"),
+        ("Vida", "Consells, preguntes i vivències")
+    ];
+}
