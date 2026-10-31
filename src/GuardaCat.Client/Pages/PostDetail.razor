@@ -5,13 +5,14 @@
 @inject NavigationManager Navigation
 
 <PageTitle>@(post?.Title ?? "Publicació") — Guarda.cat</PageTitle>
-<section class="content-page">
-    <a href="/">← Publicacions</a>
+<section class="content-page publication-page">
+    <a class="publication-back" href="/">← Publicacions</a>
     @if (error is not null) { <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div> }
     @if (loading) { <p role="status">Carregant la publicació…</p> }
     else if (post is not null)
     {
-        <article class="article-panel">
+        <div class="publication-thread">
+        <article class="publication-post">
             <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
             <h1>@post.Title</h1>
             @if (post.UpdatedAtUtc is { } updated) { <p class="post-meta">Editat el @updated.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p> }
@@ -25,18 +26,46 @@
                 </div>
             }
             <div class="markdown-body">@((MarkupString)post.BodyHtml)</div>
-            <div class="post-engagement">
-                <span>@post.LikeCount m'agrada</span>
+            <div class="publication-controls">
+                <div class="post-engagement">
+                    <AuthorizeView>
+                        <Authorized>
+                            <button type="button" class="@LikeCssClass" @onclick="ToggleLikeAsync" disabled="@busy"
+                                    aria-label="@LikeLabel" aria-pressed="@liked" title="@LikeLabel">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7.5 10.5 11.7 3a1.8 1.8 0 0 1 3.3 1.35L14.25 8H19a2 2 0 0 1 1.94 2.48l-1.75 7A2 2 0 0 1 17.25 19H7.5m0-8.5V19m0-8.5H4V19h3.5" />
+                                </svg>
+                            </button>
+                        </Authorized>
+                        <NotAuthorized>
+                            <span class="like-icon-static" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M7.5 10.5 11.7 3a1.8 1.8 0 0 1 3.3 1.35L14.25 8H19a2 2 0 0 1 1.94 2.48l-1.75 7A2 2 0 0 1 17.25 19H7.5m0-8.5V19m0-8.5H4V19h3.5" />
+                                </svg>
+                            </span>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                    <span class="like-count">@post.LikeCount<span class="visually-hidden"> m'agrada</span></span>
+                    <span class="comment-metric" aria-label="@($"{post.CommentCount} comentaris")">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 5.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-4.5 3v-3H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
+                        </svg>
+                        <span class="metric-count">@post.CommentCount<span class="visually-hidden"> comentaris</span></span>
+                    </span>
+                </div>
                 <AuthorizeView>
-                    <button type="button" class="@LikeCssClass" @onclick="ToggleLikeAsync" disabled="@busy">
-                        @(liked ? "Ja no m'agrada" : "M'agrada")
-                    </button>
+                    @if (canEdit)
+                    {
+                        <div class="publication-actions">
+                            <a href="@($"/posts/{Id}/edit")">Edita</a>
+                            <button type="button" @onclick="() => confirmDelete = true">Elimina</button>
+                        </div>
+                    }
                 </AuthorizeView>
             </div>
             <AuthorizeView>
                 @if (canEdit)
                 {
-                    <div class="page-actions"><a href="@($"/posts/{Id}/edit")">Edita</a><button type="button" class="session-link" @onclick="() => confirmDelete = true">Elimina</button></div>
                     @if (confirmDelete)
                     {
                         <div class="delete-confirm" role="alert">
@@ -48,7 +77,8 @@
                 }
             </AuthorizeView>
         </article>
-        <CommentSection PostId="Id" @key="Id" />
+        <CommentSection PostId="Id" OnCommentCountChanged="UpdateCommentCount" @key="Id" />
+        </div>
     }
 </section>
 
@@ -59,6 +89,7 @@
     private string? error;
     private bool loading, canEdit, liked, confirmDelete, busy;
     private string LikeCssClass => liked ? "like-action is-liked" : "like-action";
+    private string LikeLabel => liked ? "Retira el m'agrada" : "M'agrada";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -110,6 +141,11 @@
             }
         }
         finally { busy = false; }
+    }
+
+    private void UpdateCommentCount(int count)
+    {
+        if (post is not null) post = post with { CommentCount = count };
     }
 
     public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }

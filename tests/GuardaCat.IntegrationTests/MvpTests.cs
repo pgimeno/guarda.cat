@@ -213,7 +213,7 @@ public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresF
         Assert.Equal(new LikeResponse(0, false), (await repeatedUnlike.Content.ReadFromJsonAsync<LikeResponse>())!);
         using var commentLike = await Mutate(reader, HttpMethod.Put,
             $"/api/posts/{post.Id}/comments/{Guid.NewGuid()}/like");
-        Assert.Equal(HttpStatusCode.NotFound, commentLike.StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, commentLike.StatusCode);
     }
 
     [Fact]

@@ -68,6 +68,18 @@ button:focus-visible,
     outline-offset: 3px;
 }
 
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    margin: -1px;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 h1[tabindex="-1"]:focus,
 .anchor-section[tabindex="-1"]:focus,
 .main-content[tabindex="-1"]:focus {
@@ -964,6 +976,11 @@ h1[tabindex="-1"]:focus,
 .editor-panel { margin: 20px 0; padding: clamp(18px, 4vw, 32px); background: var(--gc-surface); border: 1px solid var(--gc-line); border-radius: 12px; }
 .article-panel h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); line-height: 1.2; margin: 12px 0; overflow-wrap: anywhere; }
 .article-panel h2 { font-size: 1.3rem; margin-bottom: 16px; }
+.publication-page { width: min(100% - 32px, 900px); }
+.publication-back { display: inline-flex; margin-bottom: 18px; }
+.publication-thread { overflow: hidden; border: 1px solid var(--gc-line); border-radius: 12px; background: var(--gc-surface); }
+.publication-post { padding: clamp(22px, 5vw, 42px); }
+.publication-post h1 { margin: 12px 0; font-size: clamp(1.7rem, 4vw, 2.35rem); line-height: 1.18; letter-spacing: -0.035em; overflow-wrap: anywhere; }
 .markdown-body { margin: 24px 0; overflow-wrap: anywhere; line-height: 1.75; }
 .markdown-body p,
 .markdown-body ul,
@@ -976,14 +993,43 @@ h1[tabindex="-1"]:focus,
 .markdown-body code { font-family: Consolas, monospace; font-size: 0.9em; }
 .markdown-body a { text-decoration: underline; color: var(--gc-accent-strong); }
 .markdown-body blockquote { border-left: 3px solid var(--gc-accent); padding-left: 16px; color: var(--gc-muted); }
-.comment { border-bottom: 1px solid var(--gc-line); padding: 16px 0; }
+.comment-thread { padding: clamp(22px, 5vw, 36px) clamp(22px, 5vw, 42px) clamp(28px, 5vw, 40px); border-top: 1px solid var(--gc-line); }
+.comment-composer { margin-bottom: 10px; padding-bottom: 22px; border-bottom: 1px solid #ececea; }
+.comment-input { display: block; width: 100%; min-height: 92px; max-height: 220px; resize: vertical; overflow-y: auto; padding: 13px 14px; border: 1px solid var(--gc-line-strong); border-radius: 9px; outline: 0; background: var(--gc-surface); color: var(--gc-ink); font: inherit; line-height: 1.55; transition: border-color 140ms ease, box-shadow 140ms ease; }
+.comment-input::placeholder { color: #929297; }
+.comment-input:focus { border-color: var(--gc-accent); box-shadow: 0 0 0 3px rgb(113 65 93 / 10%); }
+.comment-input:disabled { background: var(--gc-surface-soft); cursor: wait; opacity: 0.72; }
+.comment-composer-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.comment-submit { min-height: 34px; padding: 0 14px; border: 1px solid var(--gc-accent); border-radius: 8px; background: var(--gc-accent); color: #ffffff; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 750; transition: background-color 140ms ease, border-color 140ms ease; }
+.comment-submit:hover { border-color: var(--gc-accent-strong); background: var(--gc-accent-strong); }
+.comment-submit:disabled { border-color: var(--gc-line); background: var(--gc-line); color: var(--gc-muted); cursor: default; }
+.comment-login { margin-bottom: 10px; padding: 13px 0 20px; border-bottom: 1px solid #ececea; color: var(--gc-muted); font-size: 0.84rem; }
+.comment-login a { color: var(--gc-accent-strong); font-weight: 700; }
+.comment { border-bottom: 1px solid #ececea; padding: 18px 0; }
+.comment.is-new { margin-top: 4px; }
 .comment-body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 8px; }
-.post-engagement { display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--gc-line); color: var(--gc-muted); font-size: 0.82rem; }
-.like-action { min-height: 34px; padding: 0 12px; border: 1px solid var(--gc-line-strong); border-radius: 999px; background: var(--gc-surface); color: var(--gc-accent-strong); cursor: pointer; font-weight: 700; }
+.empty-comments { padding: 24px 0 10px; color: var(--gc-muted); font-size: 0.86rem; }
+.publication-controls { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 28px; }
+.post-engagement { display: inline-flex; align-items: center; gap: 7px; color: var(--gc-muted); font-size: 0.82rem; font-weight: 750; }
+.like-action,
+.like-icon-static { display: inline-grid; width: 36px; height: 36px; place-items: center; padding: 0; border-radius: 50%; }
+.like-action { border: 1px solid var(--gc-line); background: var(--gc-surface); color: var(--gc-muted); cursor: pointer; transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease, transform 140ms ease; }
+.like-action svg,
+.like-icon-static svg { width: 19px; height: 19px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.like-icon-static { color: var(--gc-muted); }
 .like-action:hover,
-.like-action.is-liked { border-color: var(--gc-accent); background: var(--gc-accent-soft); }
+.like-action.is-liked { border-color: var(--gc-accent); background: var(--gc-accent-soft); color: var(--gc-accent-strong); transform: translateY(-1px); }
 .like-action:disabled { cursor: wait; opacity: 0.65; }
-.delete-confirm { padding: 16px; border: 1px solid #dfbbc5; border-radius: 8px; background: #fff5f6; }
+.like-count { min-width: 1ch; color: var(--gc-ink); font-variant-numeric: tabular-nums; }
+.comment-metric { display: inline-flex; align-items: center; gap: 7px; margin-left: 11px; color: var(--gc-muted); font-weight: 750; }
+.comment-metric svg { width: 20px; height: 20px; fill: none; stroke: currentcolor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.metric-count { min-width: 1ch; color: var(--gc-ink); font-variant-numeric: tabular-nums; }
+.publication-actions { display: flex; align-items: center; gap: 14px; }
+.publication-actions a,
+.publication-actions button { border: 0; background: transparent; color: var(--gc-muted); cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700; }
+.publication-actions a:hover,
+.publication-actions button:hover { color: var(--gc-accent-strong); }
+.delete-confirm { margin-top: 20px; padding: 16px; border: 1px solid #dfbbc5; border-radius: 8px; background: #fff5f6; }
 
 @media (prefers-reduced-motion: reduce) {
     html {

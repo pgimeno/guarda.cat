@@ -80,13 +80,14 @@ public static class PostEndpoints
         var post = await db.Posts.AsNoTracking().Where(post => post.Id == id)
             .Select(post => new { post.Id, post.Title, post.BodyMarkdown, post.AuthorId,
                 AuthorName = post.Author.DisplayName, post.CreatedAtUtc, post.UpdatedAtUtc,
+                CommentCount = post.Comments.Count,
                 LikeCount = post.Likes.Count,
                 Tags = post.PostTags.OrderBy(postTag => postTag.TagName).Select(postTag => postTag.TagName).ToList()
             }).SingleOrDefaultAsync(ct);
         if (post is null) return PostValidation.NotFound();
         markdown.TryRender(post.BodyMarkdown, out var html);
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
-            post.AuthorName, post.CreatedAtUtc, post.UpdatedAtUtc, post.LikeCount, post.Tags));
+            post.AuthorName, post.CreatedAtUtc, post.UpdatedAtUtc, post.CommentCount, post.LikeCount, post.Tags));
     }
 
     private static async Task<IResult> EditAsync(Guid id, ClaimsPrincipal user, ApplicationDbContext db, CancellationToken ct)
@@ -122,7 +123,7 @@ public static class PostEndpoints
         await db.SaveChangesAsync(ct);
         var name = await db.Users.Where(author => author.Id == post.AuthorId).Select(author => author.DisplayName).SingleAsync(ct);
         return Results.Created($"/api/public/posts/{post.Id}",
-            new PostResponse(post.Id, post.Title, html, post.AuthorId, name, post.CreatedAtUtc, null, 0, tags));
+            new PostResponse(post.Id, post.Title, html, post.AuthorId, name, post.CreatedAtUtc, null, 0, 0, tags));
     }
 
     private static async Task<IResult> UpdateAsync(Guid id, SavePostRequest request, ClaimsPrincipal user,
@@ -150,9 +151,12 @@ public static class PostEndpoints
             post.PostTags.Add(new PostTag { TagName = added });
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateConcurrencyException) { return PostValidation.NotFound(); }
-        var likeCount = await db.PostLikes.CountAsync(like => like.PostId == id, ct);
+        var counts = await db.Posts.Where(value => value.Id == id)
+            .Select(value => new { CommentCount = value.Comments.Count, LikeCount = value.Likes.Count })
+            .SingleAsync(ct);
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
-            post.Author.DisplayName, post.CreatedAtUtc, post.UpdatedAtUtc, likeCount, tags));
+            post.Author.DisplayName, post.CreatedAtUtc, post.UpdatedAtUtc,
+            counts.CommentCount, counts.LikeCount, tags));
     }
 
     private static async Task<IResult> DeleteAsync(Guid id, ClaimsPrincipal user, ApplicationDbContext db, CancellationToken ct)

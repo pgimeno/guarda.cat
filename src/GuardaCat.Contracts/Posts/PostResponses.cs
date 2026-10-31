@@ -6,7 +6,7 @@ public sealed record PostSummaryResponse(Guid Id, string Title, string Excerpt, 
     string AuthorName, DateTime CreatedAtUtc, int CommentCount, int LikeCount, List<string> Tags);
 
 public sealed record PostResponse(Guid Id, string Title, string BodyHtml, Guid AuthorId,
-    string AuthorName, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc, int LikeCount, List<string> Tags);
+    string AuthorName, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc, int CommentCount, int LikeCount, List<string> Tags);
 
 public sealed record EditPostResponse(Guid Id, string Title, string BodyMarkdown, List<string> Tags);
 
