@@ -180,7 +180,7 @@ h1[tabindex="-1"]:focus,
     color: var(--gc-accent-strong);
 }
 
-.header-status {
+.session-menu {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -188,6 +188,63 @@ h1[tabindex="-1"]:focus,
     font-size: 0.79rem;
     font-weight: 600;
     white-space: nowrap;
+    justify-self: end;
+    min-width: 0;
+}
+
+.session-link {
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--gc-accent-strong);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.session-link:hover,
+.session-register {
+    background: var(--gc-accent-soft);
+}
+
+.session-link:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.session-name {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.auth-page {
+    width: min(100% - 32px, 440px);
+    margin: 40px auto;
+    padding: 28px;
+    border: 1px solid var(--gc-line);
+    border-radius: 12px;
+    background: var(--gc-surface);
+}
+
+.auth-page h1 {
+    font-size: 1.65rem;
+    letter-spacing: -0.04em;
+}
+
+.auth-intro {
+    margin: 8px 0 20px;
+    color: var(--gc-muted);
+}
+
+.auth-footer {
+    margin-top: 24px;
+    font-size: 0.85rem;
+}
+
+.auth-footer a {
+    color: var(--gc-accent-strong);
+    text-decoration: underline;
 }
 
 .status-dot {
@@ -813,10 +870,6 @@ h1[tabindex="-1"]:focus,
         display: none;
     }
 
-    .header-status {
-        justify-self: end;
-    }
-
     .community-workspace {
         width: min(100% - 24px, 620px);
         padding-top: 14px;
@@ -853,13 +906,12 @@ h1[tabindex="-1"]:focus,
 }
 
 @media (max-width: 430px) {
-    .header-status {
-        font-size: 0;
+    .session-name {
+        max-width: 75px;
     }
 
-    .header-status .status-dot {
-        width: 8px;
-        height: 8px;
+    .session-menu {
+        gap: 2px;
     }
 
     .community-workspace {

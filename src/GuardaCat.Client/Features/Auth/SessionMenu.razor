@@ -1,0 +1,60 @@
+@inject AuthClient Auth
+@inject CookieAuthenticationStateProvider Session
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<div class="session-menu">
+    <AuthorizeView>
+        <Authorized>
+            <span class="session-name" title="@context.User.Identity?.Name">@context.User.Identity?.Name</span>
+            <button type="button" class="session-link" @onclick="LogoutAsync" disabled="@busy">Surt</button>
+        </Authorized>
+        <NotAuthorized>
+            @if (Session.Error is not null)
+            {
+                <button type="button" class="session-link" @onclick="RetryAsync" disabled="@busy">Reintenta la sessió</button>
+            }
+            else
+            {
+                <a href="/login" class="session-link">Entra</a>
+                <a href="/register" class="session-link session-register">Registra't</a>
+            }
+        </NotAuthorized>
+        <Authorizing><span role="status">Comprovant sessió…</span></Authorizing>
+    </AuthorizeView>
+</div>
+
+@code {
+    private bool busy;
+
+    private async Task LogoutAsync()
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            var error = await Auth.LogoutAsync();
+            await Session.RefreshAsync();
+            if (error is not null) Snackbar.Add(error, Severity.Error);
+            else Navigation.NavigateTo("/");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RetryAsync()
+    {
+        busy = true;
+        try
+        {
+            await Session.RefreshAsync();
+            if (Session.Error is not null) Snackbar.Add(Session.Error, Severity.Error);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

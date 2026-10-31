@@ -1,0 +1,64 @@
+@page "/login"
+@inject AuthClient Auth
+@inject CookieAuthenticationStateProvider Session
+@inject NavigationManager Navigation
+
+<PageTitle>Inicia sessió — Guarda.cat</PageTitle>
+
+<section class="auth-page" aria-labelledby="login-title">
+    <p class="eyebrow">GUARDA.CAT</p>
+    <h1 id="login-title">Inicia sessió</h1>
+    <p class="auth-intro">Torna a les converses de la comunitat.</p>
+
+    @if (Registered)
+    {
+        <MudAlert Severity="Severity.Success">Compte creat. Ja pots iniciar sessió.</MudAlert>
+    }
+    @if (error is not null)
+    {
+        <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div>
+    }
+
+    <EditForm Model="model" OnValidSubmit="LoginAsync">
+        <DataAnnotationsValidator />
+        <MudTextField T="string" Label="Correu electrònic" InputType="InputType.Email"
+                      @bind-Value="model.Email" For="@(() => model.Email)" autocomplete="username" Disabled="busy" />
+        <MudTextField T="string" Label="Contrasenya" InputType="InputType.Password"
+                      @bind-Value="model.Password" For="@(() => model.Password)" autocomplete="current-password" Disabled="busy" />
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy" FullWidth="true" Class="mt-6">
+            @(busy ? "Iniciant sessió…" : "Inicia sessió")
+        </MudButton>
+    </EditForm>
+
+    <p class="auth-footer">Encara no tens compte? <a href="/register">Crea un compte</a></p>
+</section>
+
+@code {
+    [SupplyParameterFromQuery]
+    public bool Registered { get; set; }
+
+    private readonly LoginRequest model = new();
+    private bool busy;
+    private string? error;
+
+    private async Task LoginAsync()
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            error = await Auth.LoginAsync(model);
+            model.Password = string.Empty;
+            if (error is null)
+            {
+                await Session.RefreshAsync();
+                error = Session.Error;
+                if (error is null) Navigation.NavigateTo("/");
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

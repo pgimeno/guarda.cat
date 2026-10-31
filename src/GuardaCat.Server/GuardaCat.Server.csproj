@@ -2,7 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GuardaCat.Contracts\GuardaCat.Contracts.csproj" />
-    <ProjectReference Include="..\GuardaCat.Client\GuardaCat.Client.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\GuardaCat.Client\GuardaCat.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

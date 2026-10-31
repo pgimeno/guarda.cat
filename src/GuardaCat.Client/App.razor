@@ -2,7 +2,11 @@
     <Found Context="routeData">
         <ErrorBoundary>
             <ChildContent>
-                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <div class="auth-page"><h1>Cal iniciar sessió</h1><a href="/login">Inicia sessió</a></div>
+                    </NotAuthorized>
+                </AuthorizeRouteView>
             </ChildContent>
             <ErrorContent>
                 <LayoutView Layout="@typeof(MainLayout)">

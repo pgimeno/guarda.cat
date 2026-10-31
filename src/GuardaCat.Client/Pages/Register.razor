@@ -1,0 +1,54 @@
+@page "/register"
+@inject AuthClient Auth
+@inject NavigationManager Navigation
+
+<PageTitle>Crea un compte — Guarda.cat</PageTitle>
+
+<section class="auth-page" aria-labelledby="register-title">
+    <p class="eyebrow">GUARDA.CAT</p>
+    <h1 id="register-title">Crea un compte</h1>
+    <p class="auth-intro">Un espai per compartir perspectives en català.</p>
+
+    @if (error is not null)
+    {
+        <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div>
+    }
+
+    <EditForm Model="model" OnValidSubmit="RegisterAsync">
+        <DataAnnotationsValidator />
+        <MudTextField T="string" Label="Nom públic" @bind-Value="model.DisplayName"
+                      For="@(() => model.DisplayName)" autocomplete="nickname" Disabled="busy" />
+        <MudTextField T="string" Label="Correu electrònic" InputType="InputType.Email" @bind-Value="model.Email"
+                      For="@(() => model.Email)" autocomplete="username" Disabled="busy" />
+        <MudTextField T="string" Label="Contrasenya" InputType="InputType.Password" @bind-Value="model.Password"
+                      For="@(() => model.Password)" autocomplete="new-password" Disabled="busy"
+                      HelperText="Entre 10 i 128 caràcters, amb majúscula, minúscula, número i símbol." />
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy" FullWidth="true" Class="mt-6">
+            @(busy ? "Creant el compte…" : "Crea un compte")
+        </MudButton>
+    </EditForm>
+
+    <p class="auth-footer">Ja tens compte? <a href="/login">Inicia sessió</a></p>
+</section>
+
+@code {
+    private readonly RegisterRequest model = new();
+    private bool busy;
+    private string? error;
+
+    private async Task RegisterAsync()
+    {
+        if (busy) return;
+        busy = true;
+        try
+        {
+            error = await Auth.RegisterAsync(model);
+            model.Password = string.Empty;
+            if (error is null) Navigation.NavigateTo("/login?registered=true");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
