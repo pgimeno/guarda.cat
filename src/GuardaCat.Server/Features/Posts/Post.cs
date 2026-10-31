@@ -13,4 +13,6 @@ public sealed class Post
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
     public ICollection<Comment> Comments { get; set; } = new List<Comment>();
+    public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
+    public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
 }

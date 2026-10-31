@@ -953,6 +953,12 @@ h1[tabindex="-1"]:focus,
 .post-row h2 a:hover { color: var(--gc-accent); text-decoration: underline; }
 .post-meta { color: var(--gc-muted); font-size: 0.8rem; }
 .post-excerpt { margin-bottom: 12px; color: var(--gc-muted); overflow-wrap: anywhere; white-space: pre-line; }
+.active-filter { margin-bottom: 12px; padding: 10px 13px; border: 1px solid var(--gc-line); border-radius: 9px; background: var(--gc-surface); color: var(--gc-muted); font-size: 0.82rem; }
+.active-filter a { color: var(--gc-accent-strong); font-weight: 700; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.tag-chip { display: inline-flex; min-height: 27px; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--gc-accent-soft); color: var(--gc-accent-strong); font-size: 0.74rem; font-weight: 700; }
+.tag-chip:hover { background: #e5d6de; }
+.post-stats { display: flex; flex-wrap: wrap; gap: 14px; }
 .feed-message { padding: 24px; }
 .article-panel,
 .editor-panel { margin: 20px 0; padding: clamp(18px, 4vw, 32px); background: var(--gc-surface); border: 1px solid var(--gc-line); border-radius: 12px; }
@@ -972,6 +978,11 @@ h1[tabindex="-1"]:focus,
 .markdown-body blockquote { border-left: 3px solid var(--gc-accent); padding-left: 16px; color: var(--gc-muted); }
 .comment { border-bottom: 1px solid var(--gc-line); padding: 16px 0; }
 .comment-body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 8px; }
+.post-engagement { display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--gc-line); color: var(--gc-muted); font-size: 0.82rem; }
+.like-action { min-height: 34px; padding: 0 12px; border: 1px solid var(--gc-line-strong); border-radius: 999px; background: var(--gc-surface); color: var(--gc-accent-strong); cursor: pointer; font-weight: 700; }
+.like-action:hover,
+.like-action.is-liked { border-color: var(--gc-accent); background: var(--gc-accent-soft); }
+.like-action:disabled { cursor: wait; opacity: 0.65; }
 .delete-confirm { padding: 16px; border: 1px solid #dfbbc5; border-radius: 8px; background: #fff5f6; }
 
 @media (prefers-reduced-motion: reduce) {

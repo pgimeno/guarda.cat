@@ -42,6 +42,8 @@ public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresF
         var paths = document.RootElement.GetProperty("paths");
         Assert.True(paths.GetProperty("/api/posts").GetProperty("post").GetProperty("responses").TryGetProperty("201", out _));
         Assert.True(paths.GetProperty("/api/posts/{id}/comments").GetProperty("post").GetProperty("responses").TryGetProperty("429", out _));
+        Assert.True(paths.GetProperty("/api/posts/{id}/like").TryGetProperty("put", out _));
+        Assert.True(paths.GetProperty("/api/posts/{id}/like").TryGetProperty("delete", out _));
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         Assert.Equal(150, schemas.GetProperty("SavePostRequest").GetProperty("properties").GetProperty("title").GetProperty("maxLength").GetInt32());
         Assert.False(schemas.GetProperty("PostResponse").GetProperty("properties").TryGetProperty("email", out _));
@@ -120,7 +122,8 @@ public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresF
         {
             (HttpMethod.Post, "/api/posts"), (HttpMethod.Put, $"/api/posts/{post.Id}"),
             (HttpMethod.Delete, $"/api/posts/{post.Id}"), (HttpMethod.Post, $"/api/posts/{post.Id}/comments"),
-            (HttpMethod.Post, "/api/posts/preview")
+            (HttpMethod.Post, "/api/posts/preview"), (HttpMethod.Put, $"/api/posts/{post.Id}/like"),
+            (HttpMethod.Delete, $"/api/posts/{post.Id}/like")
         })
         {
             using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(ValidPost()) };
@@ -168,6 +171,73 @@ public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresF
         var comments = await author.GetFromJsonAsync<PagedResponse<CommentResponse>>($"/api/public/posts/{postId}/comments?pageSize=2&page=2");
         Assert.Equal(3, comments!.TotalCount);
         Assert.Equal("Comentari 2", Assert.Single(comments.Items).Body);
+    }
+
+    [Fact]
+    public async Task Tags_filter_posts_and_likes_are_post_only_and_idempotent()
+    {
+        await using var host = database.CreateHost();
+        using var author = Client(host);
+        using var reader = Client(host);
+        using var anonymous = Client(host);
+        await SignInAsync(author);
+        await SignInAsync(reader);
+
+        using var created = await Mutate(author, HttpMethod.Post, "/api/posts", new SavePostRequest
+        {
+            Title = "Publicació amb etiquetes",
+            BodyMarkdown = "Contingut etiquetat.",
+            Tags = [" Cultura ", "#Actualitat", "cultura", "Ciència i tecnologia"]
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var post = (await created.Content.ReadFromJsonAsync<PostResponse>())!;
+        Assert.Equal(new[] { "actualitat", "ciència-i-tecnologia", "cultura" }, post.Tags);
+
+        var filtered = await anonymous.GetFromJsonAsync<PagedResponse<PostSummaryResponse>>(
+            "/api/public/posts?tag=CULTURA");
+        Assert.Equal(post.Id, Assert.Single(filtered!.Items).Id);
+        Assert.Equal(post.Tags, filtered.Items[0].Tags);
+        var empty = await anonymous.GetFromJsonAsync<PagedResponse<PostSummaryResponse>>(
+            "/api/public/posts?tag=esports");
+        Assert.Empty(empty!.Items);
+
+        using var firstLike = await Mutate(reader, HttpMethod.Put, $"/api/posts/{post.Id}/like");
+        using var repeatedLike = await Mutate(reader, HttpMethod.Put, $"/api/posts/{post.Id}/like");
+        Assert.Equal(new LikeResponse(1, true), (await firstLike.Content.ReadFromJsonAsync<LikeResponse>())!);
+        Assert.Equal(new LikeResponse(1, true), (await repeatedLike.Content.ReadFromJsonAsync<LikeResponse>())!);
+        Assert.Equal(1, (await anonymous.GetFromJsonAsync<PostResponse>($"/api/public/posts/{post.Id}"))!.LikeCount);
+
+        using var firstUnlike = await Mutate(reader, HttpMethod.Delete, $"/api/posts/{post.Id}/like");
+        using var repeatedUnlike = await Mutate(reader, HttpMethod.Delete, $"/api/posts/{post.Id}/like");
+        Assert.Equal(new LikeResponse(0, false), (await firstUnlike.Content.ReadFromJsonAsync<LikeResponse>())!);
+        Assert.Equal(new LikeResponse(0, false), (await repeatedUnlike.Content.ReadFromJsonAsync<LikeResponse>())!);
+        using var commentLike = await Mutate(reader, HttpMethod.Put,
+            $"/api/posts/{post.Id}/comments/{Guid.NewGuid()}/like");
+        Assert.Equal(HttpStatusCode.NotFound, commentLike.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invalid_tags_are_rejected()
+    {
+        await using var host = database.CreateHost();
+        using var client = Client(host);
+        await SignInAsync(client);
+        foreach (var tags in new[]
+        {
+            new List<string> { "a" },
+            new List<string> { "cultura!" },
+            new List<string> { "un", "dos", "tres", "quatre", "cinc", "sis" }
+        })
+        {
+            using var response = await Mutate(client, HttpMethod.Post, "/api/posts", new SavePostRequest
+            {
+                Title = "Etiquetes no vàlides", BodyMarkdown = "Contingut", Tags = tags
+            });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        using var invalidFilter = await client.GetAsync("/api/public/posts?tag=cultura!");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidFilter.StatusCode);
     }
 
     [Theory]

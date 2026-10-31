@@ -16,8 +16,10 @@
             <EditForm Model="model" OnValidSubmit="SaveAsync">
                 <DataAnnotationsValidator />
                 <MudTextField T="string" Label="Títol" @bind-Value="model.Title" For="@(() => model.Title)" Disabled="busy" />
-                <MudTextField T="string" Label="Contingut en Markdown" @bind-Value="model.BodyMarkdown" For="@(() => model.BodyMarkdown)"
+                <MudTextField T="string" Label="En què estàs pensant?" @bind-Value="model.BodyMarkdown" For="@(() => model.BodyMarkdown)"
                               Lines="14" Disabled="busy" HelperText="Pots utilitzar títols, llistes, enllaços i codi. Les imatges encara no estan disponibles." />
+                <MudTextField T="string" Label="Etiquetes" @bind-Value="tagsText" Disabled="busy"
+                              HelperText="Fins a 5, separades per comes. Exemple: actualitat, cultura" />
                 <div class="page-actions">
                     <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">@(Id is null ? "Publica" : "Desa els canvis")</MudButton>
                     <MudButton ButtonType="ButtonType.Button" Variant="Variant.Outlined" OnClick="PreviewAsync" Disabled="busy">Vista prèvia</MudButton>
@@ -40,19 +42,25 @@
     private CancellationTokenSource cancellation = new();
     private string? error;
     private string? preview;
+    private string tagsText = string.Empty;
     private bool loading, ready, busy;
 
     protected override async Task OnParametersSetAsync()
     {
         cancellation.Cancel(); cancellation.Dispose(); cancellation = new();
         var ct = cancellation.Token;
-        model = new(); preview = null; error = null; ready = false; loading = true;
+        model = new(); tagsText = string.Empty; preview = null; error = null; ready = false; loading = true;
         if (Id is { } id)
         {
             var result = await Posts.EditAsync(id, ct);
             if (ct.IsCancellationRequested) return;
             error = result.Error;
-            if (result.Value is { } post) { model = new() { Title = post.Title, BodyMarkdown = post.BodyMarkdown }; ready = true; }
+            if (result.Value is { } post)
+            {
+                model = new() { Title = post.Title, BodyMarkdown = post.BodyMarkdown, Tags = post.Tags };
+                tagsText = string.Join(", ", post.Tags);
+                ready = true;
+            }
         }
         else ready = true;
         loading = false;
@@ -65,6 +73,7 @@
         var ct = cancellation.Token;
         try
         {
+            model.Tags = tagsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             var result = await Posts.SaveAsync(Id, model, ct);
             if (ct.IsCancellationRequested) return;
             error = result.Error;

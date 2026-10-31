@@ -15,7 +15,24 @@
             <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
             <h1>@post.Title</h1>
             @if (post.UpdatedAtUtc is { } updated) { <p class="post-meta">Editat el @updated.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p> }
+            @if (post.Tags.Count > 0)
+            {
+                <div class="tag-list" aria-label="Etiquetes">
+                    @foreach (var tag in post.Tags)
+                    {
+                        <a @key="tag" class="tag-chip" href="@($"/?tag={Uri.EscapeDataString(tag)}")">#@tag</a>
+                    }
+                </div>
+            }
             <div class="markdown-body">@((MarkupString)post.BodyHtml)</div>
+            <div class="post-engagement">
+                <span>@post.LikeCount m'agrada</span>
+                <AuthorizeView>
+                    <button type="button" class="@LikeCssClass" @onclick="ToggleLikeAsync" disabled="@busy">
+                        @(liked ? "Ja no m'agrada" : "M'agrada")
+                    </button>
+                </AuthorizeView>
+            </div>
             <AuthorizeView>
                 @if (canEdit)
                 {
@@ -40,13 +57,14 @@
     private CancellationTokenSource cancellation = new();
     private PostResponse? post;
     private string? error;
-    private bool loading, canEdit, confirmDelete, busy;
+    private bool loading, canEdit, liked, confirmDelete, busy;
+    private string LikeCssClass => liked ? "like-action is-liked" : "like-action";
 
     protected override async Task OnParametersSetAsync()
     {
         cancellation.Cancel(); cancellation.Dispose(); cancellation = new();
         var ct = cancellation.Token;
-        loading = true; post = null; error = null; canEdit = false; confirmDelete = false;
+        loading = true; post = null; error = null; canEdit = false; liked = false; confirmDelete = false;
         var result = await Posts.GetAsync(Id, ct);
         if (ct.IsCancellationRequested) return;
         post = result.Value; error = result.Error;
@@ -55,6 +73,7 @@
             var state = await Posts.StateAsync(Id, ct);
             if (ct.IsCancellationRequested) return;
             canEdit = state.Value?.CanEdit == true;
+            liked = state.Value?.IsLiked == true;
         }
         loading = false;
     }
@@ -70,6 +89,25 @@
             if (ct.IsCancellationRequested) return;
             error = result.Error;
             if (error is null) Navigation.NavigateTo("/my-posts");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task ToggleLikeAsync()
+    {
+        if (busy || post is null) return;
+        busy = true;
+        var ct = cancellation.Token;
+        try
+        {
+            var result = await Posts.SetLikeAsync(Id, !liked, ct);
+            if (ct.IsCancellationRequested) return;
+            error = result.Error;
+            if (result.Value is { } state)
+            {
+                liked = state.IsLiked;
+                post = post with { LikeCount = state.LikeCount };
+            }
         }
         finally { busy = false; }
     }

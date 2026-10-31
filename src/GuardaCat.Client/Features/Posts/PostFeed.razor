@@ -3,7 +3,7 @@
 
 <section class="feed-frame" aria-label="Llista de publicacions">
     <div class="feed-toolbar">
-        <span class="sort-tab is-active">Més recents</span>
+        <span class="sort-tab is-active">@(string.IsNullOrWhiteSpace(Tag) ? "Més recents" : $"#{Tag}")</span>
         @if (data is not null) { <span class="feed-count">@data.TotalCount publicacions</span> }
     </div>
     @if (loading)
@@ -26,13 +26,25 @@
                 <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
                 <h2><a href="@($"/posts/{post.Id}")">@post.Title</a></h2>
                 <p class="post-excerpt">@post.Excerpt</p>
-                <a class="post-meta" href="@($"/posts/{post.Id}#comments")">@post.CommentCount comentaris</a>
+                @if (post.Tags.Count > 0)
+                {
+                    <div class="tag-list" aria-label="Etiquetes">
+                        @foreach (var tag in post.Tags)
+                        {
+                            <a @key="tag" class="tag-chip" href="@($"/?tag={Uri.EscapeDataString(tag)}")">#@tag</a>
+                        }
+                    </div>
+                }
+                <div class="post-stats">
+                    <a class="post-meta" href="@($"/posts/{post.Id}#comments")">@post.CommentCount comentaris</a>
+                    <span class="post-meta">@post.LikeCount m'agrada</span>
+                </div>
             </article>
         }
         <nav class="pagination" aria-label="Pàgines de publicacions">
-            @if (Page > 1) { <a href="@($"{BasePath}?page={Page - 1}")">← Anterior</a> }
+            @if (Page > 1) { <a href="@PageHref(Page - 1)">← Anterior</a> }
             <span>Pàgina @Page</span>
-            @if ((long)Page * data.PageSize < data.TotalCount) { <a href="@($"{BasePath}?page={Page + 1}")">Següent →</a> }
+            @if ((long)Page * data.PageSize < data.TotalCount) { <a href="@PageHref(Page + 1)">Següent →</a> }
         </nav>
     }
 </section>
@@ -40,7 +52,11 @@
 @code {
     [Parameter] public int Page { get; set; } = 1;
     [Parameter] public bool Own { get; set; }
+    [Parameter] public string? Tag { get; set; }
     private string BasePath => Own ? "/my-posts" : "/";
+    private string PageHref(int page) => string.IsNullOrWhiteSpace(Tag)
+        ? $"{BasePath}?page={page}"
+        : $"{BasePath}?page={page}&tag={Uri.EscapeDataString(Tag)}";
     private CancellationTokenSource? cancellation;
     private PagedResponse<PostSummaryResponse>? data;
     private string? error;
@@ -55,7 +71,7 @@
         cancellation = new();
         var ct = cancellation.Token;
         loading = true;
-        var result = await Posts.ListAsync(Page, Own, ct);
+        var result = await Posts.ListAsync(Page, Own, Tag, ct);
         if (ct.IsCancellationRequested) return;
         data = result.Value;
         error = result.Error;

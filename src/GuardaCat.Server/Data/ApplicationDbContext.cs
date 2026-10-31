@@ -16,6 +16,9 @@ public sealed class ApplicationDbContext(
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<Comment> Comments => Set<Comment>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<PostTag> PostTags => Set<PostTag>();
+    public DbSet<PostLike> PostLikes => Set<PostLike>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -38,6 +41,30 @@ public sealed class ApplicationDbContext(
             comment.HasOne(value => value.Author).WithMany().HasForeignKey(value => value.AuthorId)
                 .OnDelete(DeleteBehavior.Restrict);
             comment.HasIndex(value => new { value.PostId, value.CreatedAtUtc, value.Id });
+        });
+        builder.Entity<Tag>(tag =>
+        {
+            tag.HasKey(value => value.Name);
+            tag.Property(value => value.Name).HasMaxLength(30).IsRequired();
+        });
+        builder.Entity<PostTag>(postTag =>
+        {
+            postTag.HasKey(value => new { value.PostId, value.TagName });
+            postTag.Property(value => value.TagName).HasMaxLength(30).IsRequired();
+            postTag.HasOne(value => value.Post).WithMany(value => value.PostTags)
+                .HasForeignKey(value => value.PostId).OnDelete(DeleteBehavior.Cascade);
+            postTag.HasOne(value => value.Tag).WithMany(value => value.PostTags)
+                .HasForeignKey(value => value.TagName).OnDelete(DeleteBehavior.Cascade);
+            postTag.HasIndex(value => new { value.TagName, value.PostId });
+        });
+        builder.Entity<PostLike>(like =>
+        {
+            like.HasKey(value => new { value.PostId, value.UserId });
+            like.HasOne(value => value.Post).WithMany(value => value.Likes)
+                .HasForeignKey(value => value.PostId).OnDelete(DeleteBehavior.Cascade);
+            like.HasOne(value => value.User).WithMany()
+                .HasForeignKey(value => value.UserId).OnDelete(DeleteBehavior.Cascade);
+            like.HasIndex(value => value.UserId);
         });
 
         builder.Entity<ApplicationUser>(user =>

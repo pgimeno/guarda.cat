@@ -4,7 +4,7 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-La base local (fase 1) y el MVP funcional (fase 2) están implementados. Incluye autenticación, publicaciones propias, lectura pública paginada, Markdown seguro y comentarios. Los likes previstos se limitan a posts y pertenecen a la fase 3.
+La base local (fase 1) y el MVP funcional (fase 2) están implementados. La primera entrega de la fase 3 añade tags, filtro y likes limitados a posts; queda pendiente validarla y continuar con perfiles, imágenes y outbox.
 
 Revisión del 31/10/2026:
 
@@ -15,8 +15,9 @@ Revisión del 31/10/2026:
 - [x] Publicación Release generada; CSS y JavaScript de MudBlazor incluidos y accesibles por HTTP.
 - [x] Arranque del cliente desde el artefacto Release: `index.html` referencia `_framework/blazor.webassembly.js` y el host lo sirve con estado 200.
 - [x] Publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
+- [ ] Tags, filtro y likes solo en posts implementados; compilación, migración y pruebas pendientes de ejecutar.
 
-**Próximo paso:** aplicar la migración `PostsAndComments` en la base de desarrollo al actualizar el host; continuar fase 3 por tags y filtro. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** compilar, ejecutar las pruebas y aplicar las migraciones `PostsAndComments` y `TagsAndPostLikes` en la base de desarrollo. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
 
 ## Requisitos locales
 
@@ -66,15 +67,17 @@ La suite crea bases `guardacat_auth_tests_<guid>`, aplica todas las migraciones 
 
 Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, bloqueo, límites de tráfico, claves compartidas, recursos MudBlazor, propiedad de posts, paginación, sanitización, comentarios y contrato OpenAPI. El estado y las comprobaciones manuales se registran en `docs/acceptance.md`.
 
-## Publicaciones y comentarios
+## Publicaciones, tags, likes y comentarios
 
 - `/` ofrece lectura pública paginada; `/posts/{id}` muestra el artículo y sus comentarios. `/my-posts`, `/posts/new` y `/posts/{id}/edit` requieren sesión.
 - Solo el autor puede editar o eliminar su post. El borrado elimina también sus comentarios. El servidor toma la identidad de la sesión, nunca de un `AuthorId` enviado por el cliente.
 - Títulos de 5–150 caracteres, Markdown de 1–50.000 y comentarios de texto plano de 1–2.000. Todos los posts guardados quedan publicados; no hay borradores.
 - Markdig procesa el Markdown con HTML incrustado deshabilitado. HtmlSanitizer aplica una lista permitida de etiquetas y enlaces HTTP/HTTPS. La vista previa usa el mismo procesamiento del servidor. Las imágenes quedan pendientes de fase 3.
 - Páginas de 20 elementos por defecto, máximo 50. Posts ordenados por fecha e ID descendentes; comentarios por fecha e ID ascendentes. El desempate es determinista, aunque la inserción o eliminación entre peticiones puede desplazar las páginas.
+- Cada post admite hasta 5 tags normalizados en minúsculas, de 2–30 caracteres. La portada permite filtrar por un tag mediante `?tag=` y conserva el filtro al paginar.
+- Cada usuario autenticado puede dar o retirar un único like por post. Las operaciones son idempotentes; no existen likes en comentarios ni downvotes. El límite es 60 mutaciones de like por minuto/IP.
 - Consultas públicas sin emails, permisos privados ni cookies de respuesta. Escrituras autenticadas con CSRF. Comentarios: 10/minuto/IP; vista previa: 30/minuto/IP.
-- OpenAPI disponible solo en Development: `/openapi/v1.json`, con DTO, límites y códigos de respuesta. Rutas públicas `/api/public/posts` y `/api/public/posts/{id}/comments`; rutas privadas `/api/me/posts`, `/api/posts` y `/api/posts/preview`.
+- OpenAPI disponible solo en Development: `/openapi/v1.json`, con DTO, límites y códigos de respuesta. Rutas públicas `/api/public/posts` y `/api/public/posts/{id}/comments`; rutas privadas `/api/me/posts`, `/api/posts`, `/api/posts/{id}/like` y `/api/posts/preview`.
 
 ## Publicación Release y comprobación del artefacto
 

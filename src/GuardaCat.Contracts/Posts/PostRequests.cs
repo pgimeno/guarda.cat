@@ -11,6 +11,9 @@ public sealed class SavePostRequest
     [Required(ErrorMessage = "Escriu el contingut.")]
     [StringLength(50_000, ErrorMessage = "El contingut no pot superar els 50.000 caràcters.")]
     public string BodyMarkdown { get; set; } = string.Empty;
+
+    [MaxLength(5, ErrorMessage = "Pots indicar un màxim de 5 etiquetes.")]
+    public List<string> Tags { get; set; } = [];
 }
 
 public sealed class PreviewRequest

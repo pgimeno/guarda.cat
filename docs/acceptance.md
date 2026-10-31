@@ -84,11 +84,18 @@ Comando reproducible desde la raíz, con el artefacto sirviéndose en HTTPS:
 
 La interfaz se comprobó sin errores de consola en la revisión final. La paginación usa desplazamiento: el orden es determinista, pero publicaciones o eliminaciones concurrentes pueden desplazar páginas. No se ha implantado todavía caché CDN.
 
-**Siguiente paso:** actualizar la base local y el host; después comenzar fase 3 con tags y filtro, manteniendo likes solo en posts.
+**Siguiente paso:** validar la primera entrega de fase 3 y aplicar `TagsAndPostLikes`; después continuar con perfiles, imágenes y outbox.
+
+## Fase 3: primera entrega pendiente de validación
+
+- [ ] Tags normalizados (máximo 5 por post), edición y visualización pública.
+- [ ] Filtro público por tag con paginación y enlaces desde la portada.
+- [ ] Like único e idempotente por usuario, únicamente en posts; sin likes en comentarios ni downvotes.
+- [ ] Migración `TagsAndPostLikes`, contrato OpenAPI y pruebas de integración preparados, aún no ejecutados.
 
 ## Fases posteriores
 
-- [ ] Fase 3: tags/filtro, likes en posts, perfiles, imágenes y outbox.
+- [ ] Fase 3: validar tags/filtro y likes en posts; después perfiles, imágenes y outbox.
 - [ ] Fase 4: Dockerfile único y modos web/migración. La prueba de claves compartidas ya está cubierta, pero no completa esta fase.
 - [ ] Fases 5–7: AWS/Terraform, CI/CD, backups y restauración, alarmas, presupuesto y entrega.
 

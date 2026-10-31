@@ -40,7 +40,11 @@
                 <a href="/my-posts">Les meves publicacions</a>
             </div>
         </AuthorizeView>
-        <PostFeed Page="@(Page ?? 1)" />
+        @if (!string.IsNullOrWhiteSpace(Tag))
+        {
+            <p class="active-filter">Filtrant per <strong>#@Tag</strong> · <a href="/">Neteja el filtre</a></p>
+        }
+        <PostFeed Page="@(Page ?? 1)" Tag="@Tag" />
     </section>
 
     <aside class="right-rail" aria-label="Informació de la comunitat">
@@ -73,13 +77,13 @@
             <div class="topic-list" role="list">
                 @foreach (var topic in Topics)
                 {
-                    <div @key="topic.Name" class="topic-row" role="listitem">
+                    <a @key="topic.Name" class="topic-row" role="listitem" href="@($"/?tag={Uri.EscapeDataString(topic.Name.ToLowerInvariant())}")">
                         <span class="topic-mark" aria-hidden="true">#</span>
                         <div>
                             <strong>@topic.Name</strong>
                             <span>@topic.Description</span>
                         </div>
-                    </div>
+                    </a>
                 }
             </div>
         </section>
@@ -90,6 +94,7 @@
 
 @code {
     [SupplyParameterFromQuery] public int? Page { get; set; }
+    [SupplyParameterFromQuery] public string? Tag { get; set; }
 
     private static readonly (string Name, string Description)[] Topics =
     [

@@ -13,8 +13,12 @@ public sealed class PostsClient(HttpClient http)
 {
     private static PostsJsonContext Json => PostsJsonContext.Default;
 
-    public Task<ApiResult<PagedResponse<PostSummaryResponse>>> ListAsync(int page, bool own, CancellationToken ct) =>
-        SendAsync(HttpMethod.Get, $"api/{(own ? "me" : "public")}/posts?page={page}", null, Json.PagedResponsePostSummaryResponse, ct);
+    public Task<ApiResult<PagedResponse<PostSummaryResponse>>> ListAsync(int page, bool own, string? tag, CancellationToken ct)
+    {
+        var filter = string.IsNullOrWhiteSpace(tag) ? string.Empty : $"&tag={Uri.EscapeDataString(tag)}";
+        return SendAsync(HttpMethod.Get, $"api/{(own ? "me" : "public")}/posts?page={page}{filter}", null,
+            Json.PagedResponsePostSummaryResponse, ct);
+    }
 
     public Task<ApiResult<PostResponse>> GetAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"api/public/posts/{id}", null, Json.PostResponse, ct);
@@ -34,6 +38,9 @@ public sealed class PostsClient(HttpClient http)
 
     public Task<ApiResult<PostResponse>> DeleteAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, $"api/posts/{id}", null, Json.PostResponse, ct);
+
+    public Task<ApiResult<LikeResponse>> SetLikeAsync(Guid id, bool liked, CancellationToken ct) =>
+        SendAsync(liked ? HttpMethod.Put : HttpMethod.Delete, $"api/posts/{id}/like", null, Json.LikeResponse, ct);
 
     public Task<ApiResult<PagedResponse<CommentResponse>>> CommentsAsync(Guid id, int page, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"api/public/posts/{id}/comments?page={page}", null, Json.PagedResponseCommentResponse, ct);

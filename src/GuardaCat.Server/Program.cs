@@ -72,7 +72,7 @@ builder.Services.AddRateLimiter(options =>
             title: "Massa intents. Espera un minut abans de tornar-ho a provar.")
             .ExecuteAsync(context.HttpContext);
     };
-    foreach (var (policy, limit) in new[] { ("register", 5), ("login", 10), ("comments", 10), ("preview", 30) })
+    foreach (var (policy, limit) in new[] { ("register", 5), ("login", 10), ("comments", 10), ("preview", 30), ("likes", 60) })
     {
         options.AddPolicy(policy, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
