@@ -16,15 +16,20 @@ public static class AuthEndpoints
 
         auth.MapGet("/csrf", (HttpContext context, IAntiforgery antiforgery) =>
             Results.Ok(new CsrfResponse(antiforgery.GetAndStoreTokens(context).RequestToken!)))
-            .AllowAnonymous();
+            .AllowAnonymous().Produces<CsrfResponse>();
 
-        auth.MapPost("/register", RegisterAsync).AllowAnonymous().RequireRateLimiting("register");
-        auth.MapPost("/login", LoginAsync).AllowAnonymous().RequireRateLimiting("login");
+        auth.MapPost("/register", RegisterAsync).AllowAnonymous().RequireRateLimiting("register")
+            .Produces(201).ProducesProblem(400).ProducesProblem(409).ProducesProblem(429)
+            .WithDescription("Requiere X-CSRF-TOKEN. Máximo 5 peticiones/minuto/IP. El registro no inicia sesión.");
+        auth.MapPost("/login", LoginAsync).AllowAnonymous().RequireRateLimiting("login")
+            .Produces(204).ProducesProblem(400).ProducesProblem(401).ProducesProblem(429)
+            .WithDescription("Requiere X-CSRF-TOKEN. Máximo 10 peticiones/minuto/IP. Sesión de 8 horas; bloqueo de 15 minutos tras 5 fallos.");
         auth.MapPost("/logout", async (SignInManager<ApplicationUser> signInManager) =>
         {
             await signInManager.SignOutAsync();
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization().Produces(204).ProducesProblem(400).ProducesProblem(401)
+            .WithDescription("Cierra la sesión. Requiere cookie y X-CSRF-TOKEN.");
 
         endpoints.MapGet("/api/me", async (ClaimsPrincipal principal, UserManager<ApplicationUser> users) =>
         {
@@ -32,7 +37,7 @@ public static class AuthEndpoints
             return user is null
                 ? Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Cal iniciar sessió.")
                 : Results.Ok(new CurrentUserResponse(user.Id, user.DisplayName, user.Email!));
-        }).RequireAuthorization();
+        }).RequireAuthorization().Produces<CurrentUserResponse>().ProducesProblem(401);
     }
 
     private static async Task<IResult> RegisterAsync(RegisterRequest request, UserManager<ApplicationUser> users)

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
+using GuardaCat.Server.Features.Posts;
+using GuardaCat.Server.Features.Comments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,8 @@ var connectionString = builder.Configuration.GetConnectionString("Postgres")
         "Falta ConnectionStrings:Postgres. Configúrala mediante User Secrets o una variable de entorno.");
 
 builder.Services.AddProblemDetails();
+builder.Services.AddOpenApi();
+builder.Services.AddSingleton<MarkdownRenderer>();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure()));
 
@@ -40,6 +44,7 @@ builder.Services.AddAuthorization();
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name = "__Host-GuardaCat.Session";
+    options.CookieManager = new SessionCookieManager();
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
@@ -67,7 +72,7 @@ builder.Services.AddRateLimiter(options =>
             title: "Massa intents. Espera un minut abans de tornar-ho a provar.")
             .ExecuteAsync(context.HttpContext);
     };
-    foreach (var (policy, limit) in new[] { ("register", 5), ("login", 10) })
+    foreach (var (policy, limit) in new[] { ("register", 5), ("login", 10), ("comments", 10), ("preview", 30) })
     {
         options.AddPolicy(policy, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -86,6 +91,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
+    app.MapOpenApi();
 }
 else
 {
@@ -102,6 +108,8 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapAuthEndpoints();
+app.MapPostEndpoints();
+app.MapCommentEndpoints();
 
 var health = app.MapGroup("/api/health").AllowAnonymous();
 

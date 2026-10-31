@@ -1,0 +1,78 @@
+@page "/posts/{Id:guid}"
+@implements IDisposable
+@inject PostsClient Posts
+@inject AuthenticationStateProvider Session
+@inject NavigationManager Navigation
+
+<PageTitle>@(post?.Title ?? "Publicació") — Guarda.cat</PageTitle>
+<section class="content-page">
+    <a href="/">← Publicacions</a>
+    @if (error is not null) { <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div> }
+    @if (loading) { <p role="status">Carregant la publicació…</p> }
+    else if (post is not null)
+    {
+        <article class="article-panel">
+            <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+            <h1>@post.Title</h1>
+            @if (post.UpdatedAtUtc is { } updated) { <p class="post-meta">Editat el @updated.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p> }
+            <div class="markdown-body">@((MarkupString)post.BodyHtml)</div>
+            <AuthorizeView>
+                @if (canEdit)
+                {
+                    <div class="page-actions"><a href="@($"/posts/{Id}/edit")">Edita</a><button type="button" class="session-link" @onclick="() => confirmDelete = true">Elimina</button></div>
+                    @if (confirmDelete)
+                    {
+                        <div class="delete-confirm" role="alert">
+                            <p>Vols eliminar aquesta publicació i tots els comentaris? No es pot desfer.</p>
+                            <MudButton Color="Color.Error" OnClick="DeleteAsync" Disabled="busy">Sí, elimina</MudButton>
+                            <MudButton OnClick="() => confirmDelete = false" Disabled="busy">Cancel·la</MudButton>
+                        </div>
+                    }
+                }
+            </AuthorizeView>
+        </article>
+        <CommentSection PostId="Id" @key="Id" />
+    }
+</section>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private CancellationTokenSource cancellation = new();
+    private PostResponse? post;
+    private string? error;
+    private bool loading, canEdit, confirmDelete, busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cancellation.Cancel(); cancellation.Dispose(); cancellation = new();
+        var ct = cancellation.Token;
+        loading = true; post = null; error = null; canEdit = false; confirmDelete = false;
+        var result = await Posts.GetAsync(Id, ct);
+        if (ct.IsCancellationRequested) return;
+        post = result.Value; error = result.Error;
+        if (post is not null && (await Session.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true)
+        {
+            var state = await Posts.StateAsync(Id, ct);
+            if (ct.IsCancellationRequested) return;
+            canEdit = state.Value?.CanEdit == true;
+        }
+        loading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (busy) return;
+        busy = true;
+        var ct = cancellation.Token;
+        try
+        {
+            var result = await Posts.DeleteAsync(Id, ct);
+            if (ct.IsCancellationRequested) return;
+            error = result.Error;
+            if (error is null) Navigation.NavigateTo("/my-posts");
+        }
+        finally { busy = false; }
+    }
+
+    public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }
+}

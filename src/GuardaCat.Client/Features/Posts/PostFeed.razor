@@ -1,0 +1,66 @@
+@implements IDisposable
+@inject PostsClient Posts
+
+<section class="feed-frame" aria-label="Llista de publicacions">
+    <div class="feed-toolbar">
+        <span class="sort-tab is-active">Més recents</span>
+        @if (data is not null) { <span class="feed-count">@data.TotalCount publicacions</span> }
+    </div>
+    @if (loading)
+    {
+        <p class="feed-message" role="status">Carregant publicacions…</p>
+    }
+    else if (error is not null)
+    {
+        <div class="feed-message" role="alert"><p>@error</p><button class="secondary-action" @onclick="LoadAsync">Torna-ho a provar</button></div>
+    }
+    else if (data is not null)
+    {
+        @if (data.Items.Count == 0)
+        {
+            <div class="empty-feed"><h2>Encara no hi ha publicacions</h2><p>Les converses de la comunitat apareixeran aquí.</p></div>
+        }
+        @foreach (var post in data.Items)
+        {
+            <article class="post-row" @key="post.Id">
+                <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+                <h2><a href="@($"/posts/{post.Id}")">@post.Title</a></h2>
+                <p class="post-excerpt">@post.Excerpt</p>
+                <a class="post-meta" href="@($"/posts/{post.Id}#comments")">@post.CommentCount comentaris</a>
+            </article>
+        }
+        <nav class="pagination" aria-label="Pàgines de publicacions">
+            @if (Page > 1) { <a href="@($"{BasePath}?page={Page - 1}")">← Anterior</a> }
+            <span>Pàgina @Page</span>
+            @if ((long)Page * data.PageSize < data.TotalCount) { <a href="@($"{BasePath}?page={Page + 1}")">Següent →</a> }
+        </nav>
+    }
+</section>
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public bool Own { get; set; }
+    private string BasePath => Own ? "/my-posts" : "/";
+    private CancellationTokenSource? cancellation;
+    private PagedResponse<PostSummaryResponse>? data;
+    private string? error;
+    private bool loading;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cancellation?.Cancel();
+        cancellation?.Dispose();
+        cancellation = new();
+        var ct = cancellation.Token;
+        loading = true;
+        var result = await Posts.ListAsync(Page, Own, ct);
+        if (ct.IsCancellationRequested) return;
+        data = result.Value;
+        error = result.Error;
+        loading = false;
+    }
+
+    public void Dispose() { cancellation?.Cancel(); cancellation?.Dispose(); }
+}

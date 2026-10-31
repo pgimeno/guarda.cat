@@ -16,7 +16,7 @@ Revisión: 31/10/2026. Corresponde al árbol de trabajo local, con cambios todav
 - [x] Cliente, recursos MudBlazor y API servidos por el mismo host de desarrollo.
 - [x] Claves de Data Protection persistidas en PostgreSQL.
 
-## Fase 2: autenticación local completada; MVP en curso
+## Fase 2: MVP funcional completado y validado localmente
 
 - [x] Contratos de registro, login, usuario actual y CSRF; serialización generada para el cliente WASM.
 - [x] Registro con validación de nombre, email y contraseña, sin login automático.
@@ -28,45 +28,63 @@ Revisión: 31/10/2026. Corresponde al árbol de trabajo local, con cambios todav
 - [x] Formularios en catalán, estado de sesión y navegación de cuenta en la cabecera.
 - [x] Registro e inicio de sesión comprobados en navegador con una cuenta de prueba.
 - [x] Con la última versión, login y recarga conservan la sesión; el botón `Surt` está habilitado, cierra sesión y otra recarga mantiene el estado anónimo.
-- [ ] Publicaciones: entidades, migración, contratos, CRUD exclusivo del propietario y pantallas.
-- [ ] Lectura anónima de publicaciones y comentarios con paginación estable.
-- [ ] Markdown seguro y vista previa.
-- [ ] Comentarios y comprobación con dos usuarios de permisos sobre publicaciones ajenas.
+- [x] Publicaciones: entidades, migración `PostsAndComments`, contratos, CRUD exclusivo del propietario y pantallas.
+- [x] Lectura anónima de publicaciones y comentarios con paginación y desempate por ID.
+- [x] Markdown seguro y vista previa: HTML incrustado deshabilitado y sanitización en el servidor. Imágenes aplazadas a fase 3.
+- [x] Comentarios escapados como texto plano y comprobación con dos usuarios de permisos sobre publicaciones ajenas.
+- [x] OpenAPI de desarrollo con DTO, límites y respuestas; deshabilitado en Production.
+- [x] Comprobación reproducible de recursos publicados mediante `scripts/verify-release.ps1`.
 
 ## Comprobaciones ejecutadas
 
 | Comprobación | Resultado |
 | --- | --- |
 | Compilación de la solución | Correcta, sin advertencias ni errores en la compilación comprobada. |
-| `dotnet test tests/GuardaCat.IntegrationTests --no-restore` sobre el código actual | 16 superadas; 0 fallidas; 0 omitidas. |
+| `dotnet test tests/GuardaCat.IntegrationTests -c Release --no-restore` sobre el código actual | 32 superadas; 0 fallidas; 0 omitidas. |
 | Registro y sesión por API | Registro no autentica, login emite cookie, `/api/me` responde según sesión y logout la retira. |
-| CSRF | Las tres mutaciones de cuenta sin token se rechazan; el token anónimo deja de servir tras login. |
+| CSRF | Mutaciones de cuenta, posts, comentarios y vista previa sin token rechazadas; el token anónimo deja de servir tras login. |
 | Validación y concurrencia | Entradas inválidas rechazadas y dos registros concurrentes con el mismo email normalizado producen un alta y un conflicto. |
 | Bloqueo y límites | Cinco contraseñas erróneas bloquean la cuenta; registro y login limitan tráfico. |
 | Claves compartidas | Otro host de prueba con la misma base acepta la cookie emitida por el primero. |
 | Recursos de MudBlazor | Pruebas de integración verifican CSS y JS reales, sin recibir HTML como sustituto. |
-| Navegador, host de desarrollo HTTPS | Registro/login, persistencia tras recargar, logout y persistencia del estado anónimo verificados. |
-| `dotnet publish src/GuardaCat.Server -c Release --no-restore` | Finaliza correctamente; el arranque de su cliente falla según el apartado siguiente. |
+| Propiedad de posts | B no puede editar ni borrar posts de A por API; tampoco puede obtener su Markdown de edición. `AuthorId` enviado por el cliente no altera la propiedad. |
+| Paginación | Límites rechazados, desempate estable para fechas iguales, páginas distintas y filtro por autor comprobados. |
+| Markdown | Vista previa y contenido guardado comprobados con entradas XSS; formato válido preservado e imágenes rechazadas. |
+| Comentarios | Alta autenticada, lectura pública paginada, texto escapado y borrado en cascada al borrar el post. |
+| Lecturas públicas | Sin emails ni permisos privados; misma respuesta con o sin sesión. Sin `Set-Cookie` incluso cuando corresponde revalidar el sello de seguridad de Identity. |
+| OpenAPI | Documento generado y contratos comprobados en Development. `/openapi/v1.json` devuelve 404 en Production. |
+| Navegador, Release con entorno Production y HTTPS | Registro/login, persistencia tras recargar, logout y persistencia del estado anónimo verificados. |
+| Navegador, MVP con dos usuarios | Crear, previsualizar, editar, leer anónimamente, comentar, recargar comentarios y borrar un post propio. B no recibe controles de edición del post de A. |
+| Formulario de comentarios | Tras publicar, muestra el comentario confirmado y reinicia el formulario sin una falsa validación de campo vacío. |
+| `dotnet publish src/GuardaCat.Server -c Release --no-restore` | Correcto; arranque WASM y recursos del artefacto comprobados por HTTPS y en navegador. |
 
-Las pruebas automatizadas crean y eliminan una base `guardacat_auth_tests_<guid>` y verifican que el host use esa base. La comprobación visual usó una base temporal independiente. Al finalizar se detuvo el host de prueba, se eliminó su base temporal y se verificó que no quedaban bases `guardacat_auth_*`; PostgreSQL continúa saludable. No se han probado aquí AWS, CDN, balanceador ni despliegue con contenedores.
+Las pruebas automatizadas crean y eliminan bases `guardacat_auth_tests_<guid>` y verifican que los hosts usen esas bases. La comprobación visual usó la base temporal independiente `guardacat_mvp_ui_20261031`. Se retiraron el host y los datos de prueba. PostgreSQL continúa saludable. No se han probado aquí AWS, CDN, balanceador ni despliegue con contenedores.
+
+La base habitual `guardacat` no se ha migrado durante esta validación. Antes de ejecutar el nuevo código sobre ella se debe aplicar `dotnet ef database update --project src/GuardaCat.Server --startup-project src/GuardaCat.Server`. La migración añade Posts y Comments; no elimina tablas existentes.
 
 ## Publicación Release: corrección verificada
 
-La publicación alojada desactiva el fingerprinting exclusivo del cliente independiente y usa nombres estables para sus recursos de arranque. El artefacto de validación está en `artifacts/validation/server-hosted-assets`:
+La corrección de arranque ya estaba incorporada al iniciar esta entrega: se conserva la referencia estable del cliente alojado. El artefacto del MVP está en `artifacts/validation/mvp-release`:
 
 | Recurso publicado | Evidencia HTTP local |
 | --- | --- |
-| `/` | 200; `index.html` no contiene marcadores de fingerprint pendientes. |
+| `/`, `/login`, `/register`, `/posts/new` | 200; `index.html` sin marcadores de fingerprint pendientes. |
 | `/_content/MudBlazor/MudBlazor.min.css` | 200, `text/css`. |
 | `/_content/MudBlazor/MudBlazor.min.js` | 200, `text/javascript`. |
-| `/_framework/blazor.webassembly.js` | 200, `text/javascript`; 60.682 bytes. |
+| `/_framework/blazor.webassembly.js`, `/_framework/dotnet.js` | 200, JavaScript. |
+| `/css/app.css` | 200, `text/css`. |
 
-El HTML referencia `_framework/blazor.webassembly.js`; el archivo existe en la publicación y el host lo entrega correctamente. También se comprobó la presencia de `_framework/dotnet.js`.
+El HTML referencia `_framework/blazor.webassembly.js`. El script de verificación comprueba cinco recursos de arranque/bibliotecas y la presencia de WASM; también detecta archivos ausentes, vacíos, referencias fuera de `wwwroot` y respuestas HTML incorrectas para CSS/JS. Ignora referencias comentadas en el HTML.
 
-Validación funcional pendiente:
+Comando reproducible desde la raíz, con el artefacto sirviéndose en HTTPS:
 
-1. Con PostgreSQL disponible, comprobar acceso directo a `/login` y `/register`, registro, login, recarga y logout en navegador sobre Release.
-2. Continuar fase 2 por publicaciones: modelo y migración, contratos, API con propiedad, lectura pública y páginas; después Markdown seguro y comentarios.
+```powershell
+./scripts/verify-release.ps1 -PublishDirectory artifacts/validation/mvp-release -BaseUri https://localhost:7135
+```
+
+La interfaz se comprobó sin errores de consola en la revisión final. La paginación usa desplazamiento: el orden es determinista, pero publicaciones o eliminaciones concurrentes pueden desplazar páginas. No se ha implantado todavía caché CDN.
+
+**Siguiente paso:** actualizar la base local y el host; después comenzar fase 3 con tags y filtro, manteniendo likes solo en posts.
 
 ## Fases posteriores
 

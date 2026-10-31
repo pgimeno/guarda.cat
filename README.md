@@ -4,19 +4,19 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-La base local (fase 1) está validada. La primera entrega de la fase 2, autenticación, está implementada y comprobada en desarrollo. El MVP completo sigue pendiente: todavía no hay publicaciones ni comentarios. Los likes previstos se limitan a posts.
+La base local (fase 1) y el MVP funcional (fase 2) están implementados. Incluye autenticación, publicaciones propias, lectura pública paginada, Markdown seguro y comentarios. Los likes previstos se limitan a posts y pertenecen a la fase 3.
 
 Revisión del 31/10/2026:
 
 - [x] PostgreSQL saludable en Docker Engine, publicado en `127.0.0.1:5433`.
 - [x] Migración desde una base vacía y cliente/API servidos por el mismo host local.
 - [x] Registro, login, recuperación de sesión al recargar y logout. Cierre de sesión comprobado en navegador y mantenido tras recargar.
-- [x] 16 pruebas de integración superadas con el código actual.
+- [x] Pruebas de integración de autenticación, propiedad, paginación, Markdown y comentarios en bases temporales. Resultados en [docs/acceptance.md](docs/acceptance.md).
 - [x] Publicación Release generada; CSS y JavaScript de MudBlazor incluidos y accesibles por HTTP.
 - [x] Arranque del cliente desde el artefacto Release: `index.html` referencia `_framework/blazor.webassembly.js` y el host lo sirve con estado 200.
-- [ ] Resto de fase 2: publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
+- [x] Publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
 
-**Próximo paso:** repetir el flujo completo de autenticación sobre Release y continuar con publicaciones. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** aplicar la migración `PostsAndComments` en la base de desarrollo al actualizar el host; continuar fase 3 por tags y filtro. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
 
 ## Requisitos locales
 
@@ -33,7 +33,7 @@ Revisión del 31/10/2026:
    dotnet user-secrets set "ConnectionStrings:Postgres" "Host=localhost;Port=5433;Database=guardacat;Username=guardacat;Password=<contraseña>" --project src/GuardaCat.Server
    ```
 
-4. Aplica la migración inicial y ejecuta el host:
+4. Aplica las migraciones y ejecuta el host:
 
    ```powershell
    dotnet tool restore
@@ -59,12 +59,46 @@ Docker publica PostgreSQL en `127.0.0.1:5433`; el puerto dentro del contenedor e
 Requieren PostgreSQL local y un usuario con permiso para crear bases de datos. Configura `GUARDACAT_TEST_POSTGRES` en el entorno con la conexión local (host `localhost`, puerto `5433`, usuario y contraseña de desarrollo), sin guardarla en archivos del repositorio. Ejecuta:
 
 ```powershell
-dotnet test tests/GuardaCat.IntegrationTests
+dotnet test tests/GuardaCat.IntegrationTests -c Release
 ```
 
-La suite crea una base `guardacat_auth_tests_<guid>`, aplica la migración inicial y la elimina al terminar. Comprueba que el host de pruebas usa esa base antes de enviar peticiones; no limpia ni modifica la base `guardacat`. Si el proceso se interrumpe abruptamente, puede quedar una base temporal que habrá que retirar.
+La suite crea bases `guardacat_auth_tests_<guid>`, aplica todas las migraciones y las elimina al terminar. Comprueba que los hosts de pruebas usan esas bases antes de enviar peticiones; no limpia ni modifica la base `guardacat`. Si el proceso se interrumpe abruptamente, puede quedar una base temporal que habrá que retirar.
 
-Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, bloqueo, límites de tráfico, claves compartidas y entrega de los recursos de MudBlazor. El estado y las comprobaciones manuales se registran en `docs/acceptance.md`.
+Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, bloqueo, límites de tráfico, claves compartidas, recursos MudBlazor, propiedad de posts, paginación, sanitización, comentarios y contrato OpenAPI. El estado y las comprobaciones manuales se registran en `docs/acceptance.md`.
+
+## Publicaciones y comentarios
+
+- `/` ofrece lectura pública paginada; `/posts/{id}` muestra el artículo y sus comentarios. `/my-posts`, `/posts/new` y `/posts/{id}/edit` requieren sesión.
+- Solo el autor puede editar o eliminar su post. El borrado elimina también sus comentarios. El servidor toma la identidad de la sesión, nunca de un `AuthorId` enviado por el cliente.
+- Títulos de 5–150 caracteres, Markdown de 1–50.000 y comentarios de texto plano de 1–2.000. Todos los posts guardados quedan publicados; no hay borradores.
+- Markdig procesa el Markdown con HTML incrustado deshabilitado. HtmlSanitizer aplica una lista permitida de etiquetas y enlaces HTTP/HTTPS. La vista previa usa el mismo procesamiento del servidor. Las imágenes quedan pendientes de fase 3.
+- Páginas de 20 elementos por defecto, máximo 50. Posts ordenados por fecha e ID descendentes; comentarios por fecha e ID ascendentes. El desempate es determinista, aunque la inserción o eliminación entre peticiones puede desplazar las páginas.
+- Consultas públicas sin emails, permisos privados ni cookies de respuesta. Escrituras autenticadas con CSRF. Comentarios: 10/minuto/IP; vista previa: 30/minuto/IP.
+- OpenAPI disponible solo en Development: `/openapi/v1.json`, con DTO, límites y códigos de respuesta. Rutas públicas `/api/public/posts` y `/api/public/posts/{id}/comments`; rutas privadas `/api/me/posts`, `/api/posts` y `/api/posts/preview`.
+
+## Publicación Release y comprobación del artefacto
+
+```powershell
+dotnet publish src/GuardaCat.Server -c Release -o artifacts/release
+./scripts/verify-release.ps1 -PublishDirectory artifacts/release
+```
+
+El host publica el cliente y los recursos MudBlazor juntos. `index.html` usa `_framework/blazor.webassembly.js`, sin marcadores de fingerprint pendientes. La comprobación exige recursos locales no vacíos y archivos WASM; ignora referencias dentro de comentarios HTML.
+
+Para ejecutar el artefacto, configura `ConnectionStrings__Postgres` en el entorno (sin guardar secretos en el repositorio), aplica antes las migraciones sobre la base elegida y arranca desde el directorio publicado:
+
+```powershell
+Set-Location artifacts/release
+dotnet GuardaCat.Server.dll --urls https://localhost:7135
+```
+
+Con el host iniciado, desde la raíz del repositorio:
+
+```powershell
+./scripts/verify-release.ps1 -PublishDirectory artifacts/release -BaseUri https://localhost:7135
+```
+
+Esta segunda comprobación valida acceso directo a rutas de la SPA y tipos de contenido de los recursos. El recorrido de registro/login/recarga/logout y del MVP se comprueba también en navegador: el script no sustituye esa prueba funcional. El certificado HTTPS local debe ser de confianza.
 
 ## Documentación
 

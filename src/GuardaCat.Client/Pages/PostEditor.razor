@@ -1,0 +1,91 @@
+@page "/posts/new"
+@page "/posts/{Id:guid}/edit"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
+@inject PostsClient Posts
+@inject NavigationManager Navigation
+
+<PageTitle>@(Id is null ? "Nova publicació" : "Edita la publicació") — Guarda.cat</PageTitle>
+<section class="content-page">
+    <header class="page-heading"><h1>@(Id is null ? "Nova publicació" : "Edita la publicació")</h1><a href="/my-posts">Les meves publicacions</a></header>
+    @if (error is not null) { <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div> }
+    @if (loading) { <p role="status">Carregant…</p> }
+    else if (ready)
+    {
+        <div class="editor-panel">
+            <EditForm Model="model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <MudTextField T="string" Label="Títol" @bind-Value="model.Title" For="@(() => model.Title)" Disabled="busy" />
+                <MudTextField T="string" Label="Contingut en Markdown" @bind-Value="model.BodyMarkdown" For="@(() => model.BodyMarkdown)"
+                              Lines="14" Disabled="busy" HelperText="Pots utilitzar títols, llistes, enllaços i codi. Les imatges encara no estan disponibles." />
+                <div class="page-actions">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">@(Id is null ? "Publica" : "Desa els canvis")</MudButton>
+                    <MudButton ButtonType="ButtonType.Button" Variant="Variant.Outlined" OnClick="PreviewAsync" Disabled="busy">Vista prèvia</MudButton>
+                    <a href="@(Id is null ? "/" : $"/posts/{Id}")">Cancel·la</a>
+                </div>
+                <p class="post-meta">En desar, el contingut es publica per a tothom. No es guarden esborranys.</p>
+            </EditForm>
+        </div>
+        @if (preview is not null)
+        {
+            <section class="article-panel" aria-label="Vista prèvia"><h2>Vista prèvia</h2><p class="post-meta">Contingut de l'última previsualització.</p><div class="markdown-body">@((MarkupString)preview)</div></section>
+        }
+    }
+    else { <a href="/my-posts">Torna a les teves publicacions</a> }
+</section>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    private SavePostRequest model = new();
+    private CancellationTokenSource cancellation = new();
+    private string? error;
+    private string? preview;
+    private bool loading, ready, busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cancellation.Cancel(); cancellation.Dispose(); cancellation = new();
+        var ct = cancellation.Token;
+        model = new(); preview = null; error = null; ready = false; loading = true;
+        if (Id is { } id)
+        {
+            var result = await Posts.EditAsync(id, ct);
+            if (ct.IsCancellationRequested) return;
+            error = result.Error;
+            if (result.Value is { } post) { model = new() { Title = post.Title, BodyMarkdown = post.BodyMarkdown }; ready = true; }
+        }
+        else ready = true;
+        loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (busy) return;
+        busy = true;
+        var ct = cancellation.Token;
+        try
+        {
+            var result = await Posts.SaveAsync(Id, model, ct);
+            if (ct.IsCancellationRequested) return;
+            error = result.Error;
+            if (result.Value is { } post) Navigation.NavigateTo($"/posts/{post.Id}");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task PreviewAsync()
+    {
+        if (busy) return;
+        busy = true;
+        var ct = cancellation.Token;
+        try
+        {
+            var result = await Posts.PreviewAsync(model.BodyMarkdown, ct);
+            if (ct.IsCancellationRequested) return;
+            error = result.Error; preview = result.Value?.BodyHtml;
+        }
+        finally { busy = false; }
+    }
+
+    public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }
+}

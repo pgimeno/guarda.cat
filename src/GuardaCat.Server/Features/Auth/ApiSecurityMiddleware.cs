@@ -7,7 +7,8 @@ public sealed class ApiSecurityMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context, IAntiforgery antiforgery)
     {
         if (context.Request.Path.StartsWithSegments("/api/auth")
-            || context.Request.Path.StartsWithSegments("/api/me"))
+            || context.Request.Path.StartsWithSegments("/api/me")
+            || context.Request.Path.StartsWithSegments("/api/posts"))
         {
             context.Response.Headers.CacheControl = "no-store";
         }

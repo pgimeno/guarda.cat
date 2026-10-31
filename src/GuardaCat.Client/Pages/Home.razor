@@ -34,31 +34,13 @@
             <p class="feed-intro">Actualitat, preguntes i descobertes compartides per la comunitat.</p>
         </header>
 
-        <section class="feed-frame" aria-label="Llista de publicacions">
-            <div class="feed-toolbar">
-                <div class="sort-tabs" aria-label="Ordre de les publicacions">
-                    <span class="sort-tab is-active">Més recents</span>
-                </div>
-                <span class="feed-count">0 publicacions</span>
+        <AuthorizeView>
+            <div class="page-actions">
+                <a class="primary-action" href="/posts/new">Nova publicació</a>
+                <a href="/my-posts">Les meves publicacions</a>
             </div>
-
-            <div class="empty-feed">
-                <span class="empty-feed-mark" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M5.75 6.5h12.5v8.25H10l-3.75 3v-3H5.75V6.5Z" />
-                        <path d="M9 10.25h6M9 12.5h4" />
-                    </svg>
-                </span>
-                <h2>Encara no hi ha publicacions</h2>
-                <p>Quan la comunitat comenci a publicar, les converses apareixeran aquí.</p>
-                <a href="/#temes" class="secondary-action">Explora els temes <span aria-hidden="true">→</span></a>
-            </div>
-
-            <div class="feed-footnote">
-                <span class="status-dot" aria-hidden="true"></span>
-                Lectura oberta a tothom
-            </div>
-        </section>
+        </AuthorizeView>
+        <PostFeed Page="@(Page ?? 1)" />
     </section>
 
     <aside class="right-rail" aria-label="Informació de la comunitat">
@@ -107,6 +89,8 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery] public int? Page { get; set; }
+
     private static readonly (string Name, string Description)[] Topics =
     [
         ("Actualitat", "Catalunya i el que passa al món"),
