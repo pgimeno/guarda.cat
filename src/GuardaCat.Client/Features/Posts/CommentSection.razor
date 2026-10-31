@@ -1,0 +1,90 @@
+@implements IDisposable
+@inject PostsClient Posts
+
+<section id="comments" class="comment-thread anchor-section" aria-labelledby="comments-title">
+    <h2 id="comments-title" class="visually-hidden">Comentaris</h2>
+    <AuthorizeView>
+        <Authorized Context="session">
+            <div class="comment-composer">
+                <label class="visually-hidden" for="comment-body">Escriu el teu comentari</label>
+                <textarea id="comment-body" class="comment-input" rows="3" maxlength="2000" placeholder="Què en penses?"
+                          @bind="model.Body" @bind:event="oninput" disabled="@busy"></textarea>
+                <div class="comment-composer-actions">
+                    <button type="button" class="comment-submit" @onclick="SendAsync"
+                            disabled="@(busy || string.IsNullOrWhiteSpace(model.Body))">Comenta</button>
+                </div>
+            </div>
+        </Authorized>
+        <NotAuthorized><p class="comment-login"><a href="/login">Inicia sessió</a> per comentar.</p></NotAuthorized>
+    </AuthorizeView>
+    @if (published is not null)
+    {
+        <article class="comment is-new" role="status"><p class="post-meta">El teu comentari s'ha publicat.</p><p class="comment-body">@published.Body</p></article>
+    }
+    @if (error is not null) { <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div> }
+    @if (loading) { <p role="status">Carregant comentaris…</p> }
+    else if (data is not null)
+    {
+        @if (data.Items.Count == 0 && published is null) { <p class="empty-comments">Encara no hi ha comentaris. Sigues la primera persona a respondre.</p> }
+        @foreach (var comment in data.Items.Where(comment => comment.Id != published?.Id))
+        {
+            <article class="comment" @key="comment.Id"><p class="post-meta">@comment.AuthorName · @comment.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p><p class="comment-body">@comment.Body</p></article>
+        }
+        <nav class="pagination" aria-label="Pàgines de comentaris">
+            <button class="session-link" disabled="@(page <= 1 || busy)" @onclick="() => ChangePageAsync(page - 1)">← Anterior</button>
+            <span>Pàgina @(page)</span>
+            <button class="session-link" disabled="@((long)page * data.PageSize >= data.TotalCount || busy)" @onclick="() => ChangePageAsync(page + 1)">Següent →</button>
+        </nav>
+    }
+</section>
+
+@code {
+    [Parameter] public Guid PostId { get; set; }
+    [Parameter] public EventCallback<int> OnCommentCountChanged { get; set; }
+    private readonly CancellationTokenSource cancellation = new();
+    private CreateCommentRequest model = new();
+    private PagedResponse<CommentResponse>? data;
+    private CommentResponse? published;
+    private string? error;
+    private int page = 1;
+    private bool loading, busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        var result = await Posts.CommentsAsync(PostId, page, cancellation.Token);
+        if (cancellation.IsCancellationRequested) return;
+        data = result.Value; error = result.Error; loading = false;
+        if (data is not null) await OnCommentCountChanged.InvokeAsync(data.TotalCount);
+    }
+    private async Task ChangePageAsync(int next)
+    {
+        if (busy || loading) return;
+        published = null; page = next; await LoadAsync();
+    }
+    private async Task SendAsync()
+    {
+        if (busy || string.IsNullOrWhiteSpace(model.Body)) return;
+        busy = true;
+        try
+        {
+            var result = await Posts.CommentAsync(PostId, model, cancellation.Token);
+            if (cancellation.IsCancellationRequested) return;
+            error = result.Error;
+            if (result.Value is { } comment)
+            {
+                model = new();
+                // Show the committed response immediately, without waiting for a cached public read.
+                published = comment;
+                if (data is not null)
+                {
+                    data = data with { TotalCount = data.TotalCount + 1 };
+                    await OnCommentCountChanged.InvokeAsync(data.TotalCount);
+                }
+            }
+        }
+        finally { busy = false; }
+    }
+    public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }
+}

@@ -1,5 +1,7 @@
 # Fase 0 - Arquitectura propuesta de Guarda.cat
 
+Guarda.cat es una comunidad generalista en catalán, centrada en Cataluña y abierta a conversaciones sobre actualidad, cultura, ciencia, deportes, viajes y vida cotidiana desde una perspectiva global. La temática del producto no está limitada a contenidos técnicos.
+
 ## 0.1 Crear y aprobar el diagrama de arquitectura
 
 Antes de generar la solución o provisionar recursos se debe revisar y aprobar este documento. Su objetivo es fijar los límites del sistema, los flujos de datos y las decisiones que condicionarán las fases posteriores.

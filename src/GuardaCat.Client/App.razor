@@ -2,13 +2,18 @@
     <Found Context="routeData">
         <ErrorBoundary>
             <ChildContent>
-                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <div class="auth-page"><h1>Cal iniciar sessió</h1><a href="/login">Inicia sessió</a></div>
+                    </NotAuthorized>
+                </AuthorizeRouteView>
             </ChildContent>
-            <ErrorContent Context="exception">
+            <ErrorContent>
                 <LayoutView Layout="@typeof(MainLayout)">
-                    <MudAlert Severity="Severity.Error" Variant="Variant.Text">
-                        No hemos podido mostrar esta página. Vuelve a intentarlo.
-                    </MudAlert>
+                    <div class="route-error" role="alert">
+                        <strong>No hem pogut mostrar aquesta pàgina.</strong>
+                        <span>Torna-ho a provar d'aquí a uns instants.</span>
+                    </div>
                 </LayoutView>
             </ErrorContent>
         </ErrorBoundary>

@@ -4,4 +4,7 @@
     <Project Path="src/GuardaCat.Contracts/GuardaCat.Contracts.csproj" />
     <Project Path="src/GuardaCat.Server/GuardaCat.Server.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GuardaCat.IntegrationTests/GuardaCat.IntegrationTests.csproj" />
+  </Folder>
 </Solution>

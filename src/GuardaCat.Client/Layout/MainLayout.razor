@@ -1,71 +1,36 @@
 @inherits LayoutComponentBase
+@using GuardaCat.Client.Theming
 
-<MudThemeProvider Theme="@Theme" />
+<MudThemeProvider Theme="@GuardaCatTheme.Default" IsDarkMode="false" ObserveSystemDarkModeChange="false" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="0" Dense="false" Class="site-header">
-        <MudContainer MaxWidth="MaxWidth.Large" Class="header-inner">
-            <MudLink Href="/" Underline="Underline.None" Class="brand" aria-label="Guarda.cat, inicio">
-                Guarda<span>.cat</span>
-            </MudLink>
+<div class="app-shell">
+    <a href="#main-content" class="skip-link">Vés al contingut</a>
 
-            <MudSpacer />
+    <header class="site-header">
+        <div class="site-header-inner">
+            <a href="/" class="brand" aria-label="Guarda.cat, inici">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M7 4.75h10a1.25 1.25 0 0 1 1.25 1.25v13.1l-6.25-3.45-6.25 3.45V6A1.25 1.25 0 0 1 7 4.75Z" />
+                    </svg>
+                </span>
+                <span>Guarda<span class="brand-suffix">.cat</span></span>
+            </a>
 
-            <nav class="desktop-nav" aria-label="Navegación principal">
-                <MudLink Href="/" Underline="Underline.None" Class="nav-link">Inicio</MudLink>
-                <MudText Typo="Typo.body2" Class="nav-muted">Explorar</MudText>
-                <MudText Typo="Typo.body2" Class="nav-muted">Acceder</MudText>
+            <nav class="header-nav" aria-label="Navegació principal">
+                <a href="/#feed-title" class="header-link is-active" aria-current="page">Inici</a>
+                <a href="/#temes" class="header-link">Temes</a>
+                <a href="/#comunitat" class="header-link">Comunitat</a>
             </nav>
-        </MudContainer>
-    </MudAppBar>
 
-    <MudMainContent Class="main-content">
+            <SessionMenu />
+        </div>
+    </header>
+
+    <main class="main-content" id="main-content" tabindex="-1">
         @Body
-    </MudMainContent>
-</MudLayout>
-
-@code {
-    private static readonly MudTheme Theme = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary = "#183B32",
-            Secondary = "#D97B4A",
-            Background = "#F7F6F2",
-            Surface = "#F7F6F2",
-            AppbarBackground = "#F7F6F2",
-            AppbarText = "#183B32",
-            TextPrimary = "#18231F",
-            TextSecondary = "#65706B",
-            Divider = "#D9DDD8"
-        },
-        LayoutProperties = new LayoutProperties
-        {
-            DefaultBorderRadius = "6px"
-        },
-        Typography = new Typography
-        {
-            Default = new DefaultTypography
-            {
-                FontFamily = ["Inter", "Segoe UI", "sans-serif"]
-            },
-            H1 = new H1Typography
-            {
-                FontFamily = ["Georgia", "Times New Roman", "serif"],
-                FontSize = "clamp(3rem, 7vw, 6.5rem)",
-                FontWeight = "500",
-                LineHeight = "0.98",
-                LetterSpacing = "-0.055em"
-            },
-            H2 = new H2Typography
-            {
-                FontFamily = ["Georgia", "Times New Roman", "serif"],
-                FontWeight = "500",
-                LetterSpacing = "-0.025em"
-            }
-        }
-    };
-}
+    </main>
+</div>

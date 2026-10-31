@@ -1,12 +1,10 @@
 @page "/404"
 
-<PageTitle>Página no encontrada — Guarda.cat</PageTitle>
+<PageTitle>Pàgina no trobada — Guarda.cat</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="not-found">
-    <MudText Typo="Typo.overline">ERROR 404</MudText>
-    <MudText HtmlTag="h1" Typo="Typo.h2">Esta página no está guardada.</MudText>
-    <MudText Typo="Typo.body1">Puede que el enlace haya cambiado o todavía no exista.</MudText>
-    <MudButton Href="/" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">
-        Volver al inicio
-    </MudButton>
-</MudContainer>
+<section class="not-found">
+    <span class="not-found-code">404</span>
+    <h1>Aquesta pàgina no és aquí.</h1>
+    <p>Pot ser que l'enllaç hagi canviat o que encara no existeixi.</p>
+    <a href="/" class="primary-action">Torna a la portada <span aria-hidden="true">→</span></a>
+</section>

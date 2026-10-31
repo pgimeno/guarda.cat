@@ -1,0 +1,12 @@
+@page "/my-posts"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Les meves publicacions — Guarda.cat</PageTitle>
+<section class="content-page">
+    <header class="page-heading"><h1>Les meves publicacions</h1><a class="primary-action" href="/posts/new">Nova publicació</a></header>
+    <PostFeed Own="true" Page="@(Page ?? 1)" />
+</section>
+
+@code {
+    [SupplyParameterFromQuery] public int? Page { get; set; }
+}

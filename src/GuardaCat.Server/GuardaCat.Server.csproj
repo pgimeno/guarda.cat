@@ -2,13 +2,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GuardaCat.Contracts\GuardaCat.Contracts.csproj" />
-    <ProjectReference Include="..\GuardaCat.Client\GuardaCat.Client.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\GuardaCat.Client\GuardaCat.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
+    <PackageReference Include="Markdig" Version="1.5.1" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.14" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
