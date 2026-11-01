@@ -17,7 +17,7 @@
                 <DataAnnotationsValidator />
                 <MudTextField T="string" Label="Títol" @bind-Value="model.Title" For="@(() => model.Title)" Disabled="busy" />
                 <MudTextField T="string" Label="En què estàs pensant?" @bind-Value="model.BodyMarkdown" For="@(() => model.BodyMarkdown)"
-                              Lines="14" Disabled="busy" HelperText="Pots utilitzar títols, llistes, enllaços i codi. Les imatges encara no estan disponibles." />
+                              Lines="14" Disabled="busy" HelperText="Pots utilitzar títols, llistes, enllaços i codi. Afegeix les imatges amb el selector, després de publicar." />
                 <MudTextField T="string" Label="Etiquetes" @bind-Value="tagsText" Disabled="busy"
                               HelperText="Fins a 5, separades per comes. Exemple: actualitat, cultura" />
                 <div class="page-actions">
@@ -28,6 +28,12 @@
                 <p class="post-meta">En desar, el contingut es publica per a tothom. No es guarden esborranys.</p>
             </EditForm>
         </div>
+        @if (Id is { } postId)
+        {
+            <MediaEditor PostId="postId" OnUploaded="InsertImage" OnRemoved="RemoveImage" @key="postId" />
+            <a href="@($"/posts/{postId}")">Veure la publicació</a>
+        }
+        else { <p>Després de publicar podràs afegir fins a cinc imatges.</p> }
         @if (preview is not null)
         {
             <section class="article-panel" aria-label="Vista prèvia"><h2>Vista prèvia</h2><p class="post-meta">Contingut de l'última previsualització.</p><div class="markdown-body">@((MarkupString)preview)</div></section>
@@ -77,7 +83,7 @@
             var result = await Posts.SaveAsync(Id, model, ct);
             if (ct.IsCancellationRequested) return;
             error = result.Error;
-            if (result.Value is { } post) Navigation.NavigateTo($"/posts/{post.Id}");
+            if (result.Value is { } post) Navigation.NavigateTo(Id is null ? $"/posts/{post.Id}/edit" : $"/posts/{post.Id}");
         }
         finally { busy = false; }
     }
@@ -89,11 +95,24 @@
         var ct = cancellation.Token;
         try
         {
-            var result = await Posts.PreviewAsync(model.BodyMarkdown, ct);
+            var result = await Posts.PreviewAsync(model.BodyMarkdown, ct, Id);
             if (ct.IsCancellationRequested) return;
             error = result.Error; preview = result.Value?.BodyHtml;
         }
         finally { busy = false; }
+    }
+
+    private void InsertImage(MediaResponse image)
+    {
+        model.BodyMarkdown += $"\n\n![Imatge]({image.Url})";
+        preview = null;
+    }
+
+    private void RemoveImage(MediaResponse image)
+    {
+        // Remove the syntax inserted by this editor; custom Markdown is validated by the server on save.
+        model.BodyMarkdown = model.BodyMarkdown.Replace($"![Imatge]({image.Url})", string.Empty, StringComparison.Ordinal);
+        preview = null;
     }
 
     public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }

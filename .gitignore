@@ -7,6 +7,7 @@
 *.suo
 TestResults/
 artifacts/
+**/App_Data/
 
 # .NET build outputs
 [Dd]ebug/

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using GuardaCat.Contracts.Profiles;
 using GuardaCat.Server.Data;
 using Microsoft.EntityFrameworkCore;
+using GuardaCat.Server.Features.Media;
 
 namespace GuardaCat.Server.Features.Profiles;
 
@@ -27,7 +28,9 @@ public static class ProfileEndpoints
         var profile = await db.Users.AsNoTracking().Where(user => user.Id == id)
             .Select(user => new ProfileResponse(user.Id, user.DisplayName, user.Bio))
             .SingleOrDefaultAsync(ct);
-        return profile is null ? NotFound() : Results.Ok(profile);
+        if (profile is null) return NotFound();
+        var avatar = await db.MediaAssets.AsNoTracking().SingleOrDefaultAsync(asset => asset.OwnerId == id && asset.PostId == null, ct);
+        return Results.Ok(profile with { Avatar = avatar is null ? null : MediaService.Response(avatar) });
     }
 
     private static async Task<IResult> UpdateAsync(UpdateProfileRequest request, ClaimsPrincipal user,
@@ -50,7 +53,7 @@ public static class ProfileEndpoints
         var updated = await db.Users.Where(value => value.Id == id).ExecuteUpdateAsync(setters => setters
             .SetProperty(value => value.DisplayName, request.DisplayName)
             .SetProperty(value => value.Bio, request.Bio), ct);
-        return updated == 0 ? NotFound() : Results.Ok(new ProfileResponse(id, request.DisplayName, request.Bio));
+        return updated == 0 ? NotFound() : await GetAsync(id, db, ct);
     }
 
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);

@@ -13,6 +13,8 @@
     else if (profile is not null)
     {
         <header class="page-heading">
+            @if (profile.Avatar is { } avatar) { <img src="@avatar.Url" alt="Avatar de @profile.DisplayName" class="profile-avatar" /> }
+            else { <span class="profile-avatar avatar-initials" aria-label="Sense avatar">@Initials</span> }
             <h1>@profile.DisplayName</h1>
             <AuthorizeView>
                 @if (context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == Id.ToString())
@@ -33,6 +35,8 @@
     private ProfileResponse? profile;
     private string? error;
     private bool loading;
+    private string Initials => string.Concat((profile?.DisplayName ?? string.Empty)
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => part[0])).ToUpperInvariant();
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 

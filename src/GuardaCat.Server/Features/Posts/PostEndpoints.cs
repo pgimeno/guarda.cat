@@ -3,6 +3,7 @@ using GuardaCat.Contracts.Posts;
 using GuardaCat.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using GuardaCat.Server.Features.Media;
 
 namespace GuardaCat.Server.Features.Posts;
 
@@ -34,7 +35,7 @@ public static class PostEndpoints
 
         var posts = endpoints.MapGroup("/api/posts").RequireAuthorization()
             .ProducesProblem(401).ProducesProblem(400)
-            .WithDescription("Requiere cookie de sesión y cabecera X-CSRF-TOKEN obtenida de GET /api/auth/csrf. HTML incrustado deshabilitado; imágenes pendientes de fase 3.");
+            .WithDescription("Requiere cookie de sesión y cabecera X-CSRF-TOKEN obtenida de GET /api/auth/csrf. HTML incrustado deshabilitado; imágenes adjuntas mediante /api/posts/{id}/images.");
         posts.MapPost("", CreateAsync).Produces<PostResponse>(201);
         posts.MapPut("/{id:guid}", UpdateAsync).Produces<PostResponse>().ProducesProblem(403).ProducesProblem(404);
         posts.MapDelete("/{id:guid}", DeleteAsync).Produces(204).ProducesProblem(403).ProducesProblem(404);
@@ -44,11 +45,20 @@ public static class PostEndpoints
         posts.MapDelete("/{id:guid}/like", UnlikeAsync).RequireRateLimiting("likes")
             .Produces<LikeResponse>().ProducesProblem(404).ProducesProblem(429)
             .WithDescription("Retirada idempotente del like de un post. Requiere sesión y X-CSRF-TOKEN.");
-        posts.MapPost("/preview", (PreviewRequest request, MarkdownRenderer markdown) =>
+        posts.MapPost("/preview", async (PreviewRequest request, MarkdownRenderer markdown, ClaimsPrincipal user,
+            ApplicationDbContext db, CancellationToken ct) =>
         {
             var error = PostValidation.Validate(request);
             if (error is not null) return error;
-            return markdown.TryRender(request.BodyMarkdown, out var html)
+            HashSet<string>? images = null;
+            if (request.PostId is { } postId)
+            {
+                var owner = await db.Posts.Where(post => post.Id == postId).Select(post => (Guid?)post.AuthorId).SingleOrDefaultAsync(ct);
+                if (owner is null) return PostValidation.NotFound();
+                if (owner != UserId(user)) return PostValidation.Forbidden();
+                images = await ImageUrlsAsync(postId, db, ct);
+            }
+            return markdown.TryRender(request.BodyMarkdown, out var html, images)
                 ? Results.Ok(new PreviewResponse(html)) : PostValidation.ImagesNotSupported();
         }).RequireRateLimiting("preview").Produces<PreviewResponse>().ProducesProblem(429)
             .WithDescription("Markdown seguro, máximo 50.000 caracteres. Requiere sesión y X-CSRF-TOKEN. Máximo 30 peticiones/minuto/IP.");
@@ -85,7 +95,7 @@ public static class PostEndpoints
                 Tags = post.PostTags.OrderBy(postTag => postTag.TagName).Select(postTag => postTag.TagName).ToList()
             }).SingleOrDefaultAsync(ct);
         if (post is null) return PostValidation.NotFound();
-        markdown.TryRender(post.BodyMarkdown, out var html);
+        markdown.TryRender(post.BodyMarkdown, out var html, await ImageUrlsAsync(id, db, ct), omitUnavailable: true);
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
             post.AuthorName, post.CreatedAtUtc, post.UpdatedAtUtc, post.CommentCount, post.LikeCount, post.Tags));
     }
@@ -126,8 +136,9 @@ public static class PostEndpoints
             new PostResponse(post.Id, post.Title, html, post.AuthorId, name, post.CreatedAtUtc, null, 0, 0, tags));
     }
 
-    private static async Task<IResult> UpdateAsync(Guid id, SavePostRequest request, ClaimsPrincipal user,
-        ApplicationDbContext db, MarkdownRenderer markdown, CancellationToken ct)
+    private static Task<IResult> UpdateAsync(Guid id, SavePostRequest request, ClaimsPrincipal user,
+        ApplicationDbContext db, MarkdownRenderer markdown, MediaService media, CancellationToken ct) =>
+        media.TransactionAsync(UserId(user), async () =>
     {
         var post = await db.Posts.Include(post => post.Author).Include(post => post.PostTags)
             .SingleOrDefaultAsync(post => post.Id == id, ct);
@@ -138,7 +149,7 @@ public static class PostEndpoints
         if (error is not null) return error;
         var tagError = PostValidation.NormalizeTags(request.Tags, out var tags);
         if (tagError is not null) return tagError;
-        if (!markdown.TryRender(request.BodyMarkdown, out var html)) return PostValidation.ImagesNotSupported();
+        if (!markdown.TryRender(request.BodyMarkdown, out var html, await ImageUrlsAsync(id, db, ct))) return PostValidation.ImagesNotSupported();
         await EnsureTagsAsync(tags, db, ct);
         post.Title = request.Title;
         post.BodyMarkdown = request.BodyMarkdown;
@@ -157,17 +168,14 @@ public static class PostEndpoints
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
             post.Author.DisplayName, post.CreatedAtUtc, post.UpdatedAtUtc,
             counts.CommentCount, counts.LikeCount, tags));
-    }
+    }, ct);
 
-    private static async Task<IResult> DeleteAsync(Guid id, ClaimsPrincipal user, ApplicationDbContext db, CancellationToken ct)
-    {
-        var owner = await db.Posts.Where(post => post.Id == id).Select(post => (Guid?)post.AuthorId).SingleOrDefaultAsync(ct);
-        if (owner is null) return PostValidation.NotFound();
-        if (owner != UserId(user)) return PostValidation.Forbidden();
-        // One atomic DELETE; the database cascades comments, tag links and likes in the same transaction.
-        var deleted = await db.Posts.Where(post => post.Id == id && post.AuthorId == owner).ExecuteDeleteAsync(ct);
-        return deleted == 0 ? PostValidation.NotFound() : Results.NoContent();
-    }
+    private static async Task<HashSet<string>> ImageUrlsAsync(Guid postId, ApplicationDbContext db, CancellationToken ct) =>
+        (await db.MediaAssets.Where(asset => asset.PostId == postId).Select(asset => asset.Id).ToListAsync(ct))
+            .Select(MediaService.Url).ToHashSet(StringComparer.Ordinal);
+
+    private static Task<IResult> DeleteAsync(Guid id, ClaimsPrincipal user, MediaService media, CancellationToken ct) =>
+        media.DeletePostAsync(id, UserId(user), ct);
 
     private static async Task<IResult> LikeAsync(Guid id, ClaimsPrincipal user, ApplicationDbContext db,
         CancellationToken ct)

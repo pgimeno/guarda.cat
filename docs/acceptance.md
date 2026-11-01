@@ -84,7 +84,7 @@ Comando reproducible desde la raíz, con el artefacto sirviéndose en HTTPS:
 
 La interfaz se comprobó sin errores de consola en la revisión final. La paginación usa desplazamiento: el orden es determinista, pero publicaciones o eliminaciones concurrentes pueden desplazar páginas. No se ha implantado todavía caché CDN.
 
-**Siguiente paso:** validar tags, likes y perfiles, aplicar las migraciones pendientes en desarrollo y continuar con imágenes (incluidos avatares) y outbox.
+**Siguiente paso:** aplicar migraciones pendientes y validar tags, likes, perfiles, imágenes y outbox. La entrega de medios se describe en la revisión del 01/11/2026 siguiente.
 
 ## Fase 3: primera entrega pendiente de validación
 
@@ -104,11 +104,26 @@ La interfaz se comprobó sin errores de consola en la revisión final. La pagina
 - [ ] En navegador: abrir el perfil desde un autor/comentario y desde la cabecera; editar nombre/bio, recargar y comprobar persistencia y actualización del nombre; probar perfil sin posts, ID inexistente y paginación manteniendo el autor.
 - [ ] En navegador: comprobar que HTML en nombre/bio se muestra como texto, el diseño en móvil y que otro usuario no dispone del enlace de edición del perfil ajeno.
 
-Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura pública, identidad de sesión frente a IDs manipulados, preservación de campos de Identity, autenticación, CSRF, límites, borrado de bio, propagación del nombre a posts/comentarios y OpenAPI. El filtro y la paginación por autor también tienen cobertura previa en `MvpTests.cs`. Si dos sesiones editan el mismo perfil, prevalece la última escritura. Avatares e imágenes quedan para la siguiente entrega; después, outbox.
+Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura pública, identidad de sesión frente a IDs manipulados, preservación de campos de Identity, autenticación, CSRF, límites, borrado de bio, propagación del nombre a posts/comentarios y OpenAPI. El filtro y la paginación por autor también tienen cobertura previa en `MvpTests.cs`. Si dos sesiones editan el mismo perfil, prevalece la última escritura.
+
+## Fase 3: medios y outbox implementados, 01/11/2026
+
+- [x] Modelo/API de medios propios, avatar único y cinco imágenes por post; límites reales JPEG/PNG, decodificación y reexportación con SkiaSharp.
+- [x] Adaptadores local/S3 y captura/SES; compensación persistida antes de subir, limpieza con reintentos y retirada de referencias al borrar.
+- [x] Editor de avatar e imágenes, inserción en Markdown y validación de pertenencia en guardado/vista previa.
+- [x] Comentario y correo en una única transacción; FK única al comentario y cancelación de pendientes por cascada.
+- [x] Worker con reclamación atómica, SKIP LOCKED, lease, timeout, confirmación condicionada al token y reintentos sin descarte.
+- [x] Migraciones `MediaAndOutbox` y `CommentNotificationOwnership` generadas, sin aplicarlas a bases de datos.
+- [x] Compilación Release sin errores ni advertencias. Quince pruebas aisladas de validación de imágenes y Markdown superadas.
+- [ ] Suite PostgreSQL preparada; `GUARDACAT_TEST_POSTGRES` ausente, no ejecutada. Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente.
+- [ ] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites y dos usuarios. Comprobar que las URLs eliminadas devuelven 404.
+- [ ] Integración S3/SES, contenedor Linux y configuración CloudFront por validar en fases posteriores.
+
+El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración, desviaciones justificadas y criterios pendientes. No se acredita la fase 3 completa ni despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
 
 ## Fases posteriores
 
-- [ ] Fase 3: validar tags/filtro, likes en posts y perfiles; después imágenes y outbox.
+- [ ] Fase 3: validar tags/filtro, likes en posts, perfiles, imágenes y outbox.
 - [ ] Fase 4: Dockerfile único y modos web/migración. La prueba de claves compartidas ya está cubierta, pero no completa esta fase.
 - [ ] Fases 5–7: AWS/Terraform, CI/CD, backups y restauración, alarmas, presupuesto y entrega.
 

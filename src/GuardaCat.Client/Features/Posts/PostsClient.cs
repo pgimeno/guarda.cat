@@ -34,8 +34,8 @@ public sealed class PostsClient(HttpClient http)
         SendAsync(id is null ? HttpMethod.Post : HttpMethod.Put, id is null ? "api/posts" : $"api/posts/{id}",
             JsonContent.Create(request, Json.SavePostRequest), Json.PostResponse, ct);
 
-    public Task<ApiResult<PreviewResponse>> PreviewAsync(string body, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, "api/posts/preview", JsonContent.Create(new PreviewRequest { BodyMarkdown = body }, Json.PreviewRequest), Json.PreviewResponse, ct);
+    public Task<ApiResult<PreviewResponse>> PreviewAsync(string body, CancellationToken ct, Guid? postId = null) =>
+        SendAsync(HttpMethod.Post, "api/posts/preview", JsonContent.Create(new PreviewRequest { BodyMarkdown = body, PostId = postId }, Json.PreviewRequest), Json.PreviewResponse, ct);
 
     public Task<ApiResult<PostResponse>> DeleteAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, $"api/posts/{id}", null, Json.PostResponse, ct);
@@ -50,7 +50,7 @@ public sealed class PostsClient(HttpClient http)
     public Task<ApiResult<CommentResponse>> CommentAsync(Guid id, CreateCommentRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"api/posts/{id}/comments", JsonContent.Create(request, Json.CreateCommentRequest), Json.CommentResponse, ct);
 
-    private async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string path, HttpContent? body, JsonTypeInfo<T> type, CancellationToken ct)
+    internal async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string path, HttpContent? body, JsonTypeInfo<T> type, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(method, path) { Content = body };
         try

@@ -4,7 +4,7 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-La base local (fase 1) y el MVP funcional (fase 2) están implementados. La fase 3 incorpora tags, filtro, likes limitados a posts y perfiles con nombre y bio. Queda pendiente la validación funcional de estas entregas; después vendrán imágenes (incluidos avatares) y outbox.
+La base local (fase 1) y el MVP funcional (fase 2) están implementados. La fase 3 incorpora tags, filtro, likes limitados a posts, perfiles, imágenes con avatares y outbox de correo. La compilación y las pruebas aisladas de imágenes/Markdown están verificadas; la validación funcional de fase 3 en PostgreSQL y navegador sigue pendiente.
 
 Revisión del 31/10/2026:
 
@@ -17,7 +17,11 @@ Revisión del 31/10/2026:
 - [x] Publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
 - [ ] Tags, filtro y likes solo en posts implementados; compilación, migración y pruebas pendientes de ejecutar.
 
-**Próximo paso:** ejecutar las pruebas de integración y revisar los perfiles en navegador. La solución compila en Release a 01/11/2026. Aplicar las migraciones anteriores pendientes (`PostsAndComments` y `TagsAndPostLikes`) antes de usar la base de desarrollo; los perfiles reutilizan el esquema existente. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** aplicar todas las migraciones pendientes (incluidas `MediaAndOutbox` y `CommentNotificationOwnership`), ejecutar las pruebas de integración y revisar la fase 3 en navegador. No se han aplicado migraciones a la base habitual en esta entrega. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+
+## Decisión arquitectónica
+
+Un único host ASP.NET Core sirve Blazor WebAssembly y la API; PostgreSQL guarda datos y trabajos pendientes, S3 los archivos y SES envía correo. Se conservan un único despliegue y workers dentro del proceso. Las alternativas y el diagrama están en [arquitectura](docs/architecture.md). Para cumplir la retirada inmediata de URLs eliminadas, esta entrega sirve `/media/*` mediante el servidor, comprobando metadatos y sin caché; S3 permanece privado. La infraestructura AWS, alta disponibilidad, backups, pipeline y costes pertenecen a fases posteriores y aún no están acreditados.
 
 ## Requisitos locales
 
@@ -72,7 +76,7 @@ Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, 
 - `/` ofrece lectura pública paginada; `/posts/{id}` muestra el artículo y sus comentarios. `/my-posts`, `/posts/new` y `/posts/{id}/edit` requieren sesión.
 - Solo el autor puede editar o eliminar su post. El borrado elimina también sus comentarios. El servidor toma la identidad de la sesión, nunca de un `AuthorId` enviado por el cliente.
 - Títulos de 5–150 caracteres, Markdown de 1–50.000 y comentarios de texto plano de 1–2.000. Todos los posts guardados quedan publicados; no hay borradores.
-- Markdig procesa el Markdown con HTML incrustado deshabilitado. HtmlSanitizer aplica una lista permitida de etiquetas y enlaces HTTP/HTTPS. La vista previa usa el mismo procesamiento del servidor. Las imágenes quedan pendientes de fase 3.
+- Markdig procesa el Markdown con HTML incrustado deshabilitado. HtmlSanitizer aplica una lista permitida de etiquetas y enlaces HTTP/HTTPS. Imágenes y vista previa solo aceptan URLs relativas de medios vinculados al mismo post; se rechazan imágenes externas, avatares, medios ajenos o eliminados.
 - Páginas de 20 elementos por defecto, máximo 50. Posts ordenados por fecha e ID descendentes; comentarios por fecha e ID ascendentes. El desempate es determinista, aunque la inserción o eliminación entre peticiones puede desplazar las páginas.
 - Cada post admite hasta 5 tags normalizados en minúsculas, de 2–30 caracteres. La portada permite filtrar por un tag mediante `?tag=` y conserva el filtro al paginar.
 - Cada usuario autenticado puede dar o retirar un único like por post. Las operaciones son idempotentes; no existen likes en comentarios ni downvotes. El límite es 60 mutaciones de like por minuto/IP.
@@ -83,10 +87,18 @@ Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, 
 
 - `/users/{id}` muestra nombre, bio como texto plano y publicaciones paginadas del usuario. Los autores de posts y comentarios enlazan a su perfil.
 - `/my-profile` permite editar el perfil propio y se abre desde el nombre de la cabecera. Tras guardar, muestra la respuesta confirmada y actualiza el nombre de la sesión.
-- `GET /api/public/users/{id}` devuelve solo ID, nombre y bio; idénticos para visitantes con o sin sesión, sin emitir cookies. Un perfil inexistente devuelve 404.
+- `GET /api/public/users/{id}` devuelve ID, nombre, bio y avatar opcional (ID, URL, ancho y alto); idénticos para visitantes con o sin sesión, sin emitir cookies. Un perfil inexistente devuelve 404.
 - `GET /api/me/profile` obtiene los datos actuales para edición y `PUT /api/me/profile` modifica únicamente el usuario de la sesión. Ambas rutas requieren autenticación y usan `no-store`; la escritura exige CSRF.
 - Nombre público de 2–60 caracteres y bio opcional de hasta 500, tras recortar espacios exteriores. Una bio vacía se guarda como `null`. La escritura actualiza solo esas columnas; dos ediciones simultáneas del perfil conservan la última escritura.
-- Se reutilizan `ApplicationUser.DisplayName` y `Bio`: sin nueva migración ni dependencias. Avatares aplazados a la entrega de imágenes.
+- Nombre y bio reutilizan `ApplicationUser.DisplayName` y `Bio`. Los avatares usan `MediaAssets`, con un único avatar por usuario.
+
+## Imágenes y notificaciones
+
+- JPEG/PNG con decodificación real y reexportación sin metadatos: avatar hasta 256 KiB y 512 × 512 px; hasta cinco fotos por post, de 5 MiB, 4096 px por lado y 12 megapíxeles cada una.
+- Tras crear un post, el editor permite subir e insertar imágenes en Markdown. La subida y el guardado del texto son operaciones independientes. Borrar una imagen retira su referencia del texto guardado y programa la limpieza física en SQL. Sustituir un avatar revoca su URL anterior.
+- Cada comentario de otro usuario genera un aviso para el autor, en la misma transacción SQL. El worker reclama tareas con `SKIP LOCKED` y lease, reintenta fallos y puede producir duplicados en casos límite. Borrar un post cancela los avisos aún pendientes; un envío ya en curso no puede retirarse.
+- Development usa `App_Data/media` y captura emails en `App_Data/mail`, fuera de `wwwroot` y excluidos de Git. Production exige configurar S3 y SES; no usa disco local como sustituto.
+- Configuración, rutas, migraciones, operación y pruebas pendientes: [medios y outbox](docs/media-and-outbox.md).
 
 ## Publicación Release y comprobación del artefacto
 

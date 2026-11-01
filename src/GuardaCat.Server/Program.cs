@@ -7,6 +7,8 @@ using System.Threading.RateLimiting;
 using GuardaCat.Server.Features.Posts;
 using GuardaCat.Server.Features.Comments;
 using GuardaCat.Server.Features.Profiles;
+using GuardaCat.Server.Features.Media;
+using GuardaCat.Server.Features.Outbox;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +19,7 @@ var connectionString = builder.Configuration.GetConnectionString("Postgres")
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<MarkdownRenderer>();
+builder.AddMediaAndOutbox();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure()));
 
@@ -73,7 +76,7 @@ builder.Services.AddRateLimiter(options =>
             title: "Massa intents. Espera un minut abans de tornar-ho a provar.")
             .ExecuteAsync(context.HttpContext);
     };
-    foreach (var (policy, limit) in new[] { ("register", 5), ("login", 10), ("comments", 10), ("preview", 30), ("likes", 60) })
+    foreach (var (policy, limit) in new[] { ("register", 5), ("login", 10), ("comments", 10), ("preview", 30), ("likes", 60), ("media", 10) })
     {
         options.AddPolicy(policy, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -112,6 +115,7 @@ app.MapAuthEndpoints();
 app.MapPostEndpoints();
 app.MapCommentEndpoints();
 app.MapProfileEndpoints();
+app.MapMediaEndpoints();
 
 var health = app.MapGroup("/api/health").AllowAnonymous();
 

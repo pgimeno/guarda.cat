@@ -8,6 +8,8 @@ Antes de generar la solución o provisionar recursos se debe revisar y aprobar e
 
 La arquitectura es una propuesta pendiente de validación en la cuenta AWS real. En especial, deben confirmarse el dominio y la zona DNS, las restricciones de la cuenta del curso, las regiones y clases disponibles, el acceso de producción de SES y el presupuesto.
 
+Revisión del 01/11/2026: [medios y outbox](media-and-outbox.md) implementa la fase 3. El criterio nuevo de retirar el acceso al eliminar una imagen sustituye la propuesta de caché larga S3/OAC: `/media/*` atraviesa el host con `no-store` y S3 permanece privado. El diagrama Mermaid siguiente refleja este ajuste; el archivo Excalidraw histórico aún debe sincronizarse antes de la entrega de infraestructura.
+
 ### Diagrama completo
 
 ```mermaid
@@ -62,9 +64,8 @@ flowchart TB
     user -->|"1. Resuelve el dominio"| dns
     dns --> cf
     acmEdge -. "certificado" .-> cf
-    cf -->|"2a. /media/* mediante OAC"| media
-    cf -->|"2b. Aplicación y /api/* por HTTPS<br/>cabecera secreta de origen"| albA
-    cf -->|"2b. Aplicación y /api/* por HTTPS<br/>cabecera secreta de origen"| albB
+    cf -->|"2. Aplicación, /api/* y /media/* por HTTPS<br/>cabecera secreta de origen"| albA
+    cf -->|"2. Aplicación, /api/* y /media/* por HTTPS<br/>cabecera secreta de origen"| albB
     acmOrigin -. "certificado" .-> albA
     acmOrigin -. "certificado" .-> albB
 
@@ -74,8 +75,8 @@ flowchart TB
     taskB -->|"TLS 5432"| dbPrimary
     dbPrimary -. "replicación síncrona administrada" .-> dbStandby
 
-    taskA -->|"SDK AWS: alta y borrado de objetos"| media
-    taskB -->|"SDK AWS: alta y borrado de objetos"| media
+    taskA -->|"SDK AWS: lectura, alta y borrado de objetos"| media
+    taskB -->|"SDK AWS: lectura, alta y borrado de objetos"| media
     taskA -->|"envío asíncrono desde outbox"| ses
     taskB -->|"envío asíncrono desde outbox"| ses
     secrets -. "secreto inyectado en la tarea" .-> taskA
@@ -114,9 +115,9 @@ El diagrama muestra flujos lógicos. `albA` y `albB` representan un único Appli
 
 ### Flujos principales
 
-1. **Lectura pública:** el navegador solicita contenido a CloudFront. Los recursos con hash y `/media/*` usan caché larga; `/api/public/*` usa una caché de 30 segundos. Las rutas autenticadas y mutaciones nunca se cachean.
+1. **Lectura pública:** el navegador solicita contenido a CloudFront. Los recursos con hash usan caché larga; `/api/public/*` prevé una caché de 30 segundos. `/media/*`, rutas autenticadas y mutaciones no se cachean.
 2. **Autenticación y escritura:** Blazor llama a la API del mismo dominio con cookie segura y token antiforgery. El servidor valida identidad, propiedad y límites antes de escribir en PostgreSQL o S3.
-3. **Imágenes:** la API valida JPEG/PNG, sube el objeto con una clave inmutable a S3 y guarda solo sus metadatos en PostgreSQL. CloudFront lo entrega mediante OAC; S3 continúa siendo privado.
+3. **Imágenes:** la API valida JPEG/PNG, registra compensación, sube el objeto con clave inmutable a S3 y activa sus metadatos en PostgreSQL. El host comprueba que los metadatos existen antes de servir el archivo; S3 sigue privado. La retirada de metadatos revoca nuevas lecturas, mientras el borrado físico se reintenta en segundo plano.
 4. **Comentarios y email:** comentario y aviso se guardan en una transacción. Un worker reclama el aviso y llama a SES sin mantener abierta la transacción SQL.
 5. **Borrado de medios:** la transacción SQL registra una tarea persistente. El worker elimina el objeto de forma idempotente; no se supone atomicidad entre PostgreSQL y S3.
 6. **Despliegue:** GitHub Actions valida, asume un rol mediante OIDC, publica una imagen inmutable en ECR, ejecuta una única tarea de migración y actualiza ECS. El despliegue espera health checks y puede revertir la imagen, pero no revierte automáticamente el esquema.
@@ -133,7 +134,7 @@ El diagrama muestra flujos lógicos. `albA` y `albB` representan un único Appli
 | Tareas en subredes públicas con IP pública | Evita NAT Gateways y endpoints privados en un proyecto académico. El SG solo permite entrada desde el ALB. | Es una simplificación de coste; las tareas no se describen como privadas. |
 | RDS PostgreSQL Multi-AZ | Identity, relaciones, constraints, transacciones y outbox encajan en SQL. Multi-AZ cubre la caída de una AZ. | El standby no escala lecturas y un failover puede interrumpir temporalmente conexiones. |
 | S3 para imágenes y PostgreSQL para metadatos | Los objetos no deben aumentar el tamaño ni los backups de la base de datos; S3 integra CDN, versionado y backup. | SQL y S3 no ofrecen una transacción común; se requieren compensación y conciliación. |
-| CloudFront con dos orígenes | Acelera el perfil de mucha lectura y poca escritura, descarga medios desde S3 y mantiene un único dominio público. | Se acepta hasta 30 segundos de consistencia eventual en vistas públicas. |
+| CloudFront delante del ALB | Cachea recursos estáticos y JSON público y mantiene un único dominio; medios sin caché pasan por el host. | Hasta 30 segundos de consistencia eventual en JSON público; mayor tráfico/consulta al origen para imágenes a cambio de revocar URLs eliminadas. |
 | Outbox PostgreSQL + `BackgroundService` | Evita perder avisos sin introducir SQS o Lambda y reutiliza las dos réplicas existentes. | Puede haber emails duplicados en un fallo concreto; no se promete exactamente una vez. |
 | Terraform en tres stacks | Separa el estado, desbloquea ECR/OIDC antes del primer despliegue y permite destruir la aplicación sin perder el backend de estado. | Hay orden y comandos distintos para bootstrap, foundation y app. |
 | GitHub Actions con OIDC | Elimina claves AWS estáticas en GitHub y limita la confianza al repositorio y entorno autorizados. | Requiere configurar primero el proveedor y los roles de foundation. |
@@ -143,7 +144,7 @@ El diagrama muestra flujos lógicos. `albA` y `albB` representan un único Appli
 - CloudFront es el único punto público previsto. El ALB acepta HTTPS desde la lista administrada de prefijos de CloudFront y exige una cabecera secreta de origen.
 - Las tareas solo aceptan TCP 8080 desde el Security Group del ALB. RDS solo acepta TCP 5432 desde las tareas web y la tarea de migración.
 - El tráfico navegador-CloudFront y CloudFront-ALB usa HTTPS; la conexión a PostgreSQL usa TLS con validación de certificado.
-- S3 bloquea acceso público, deshabilita ACL y permite lectura a la distribución concreta mediante OAC. La API escribe solo en los prefijos autorizados mediante su task role.
+- S3 bloquea acceso público y deshabilita ACL. Solo el task role lee, escribe y borra en el prefijo autorizado; no conceder acceso directo de CloudFront a los medios mientras se exija revocación mediante metadatos.
 - Los secretos no se incluyen en código, imágenes, `tfvars`, outputs públicos ni logs. Los roles de ejecución, aplicación, backup, migración y despliegue permanecen separados.
 - ALB, ECS y RDS se distribuyen entre dos zonas de disponibilidad. Liveness comprueba el proceso y readiness comprueba PostgreSQL con timeout corto.
 - CloudWatch centraliza logs con retención explícita. La alarma principal detecta menos de dos targets saludables y SNS notifica al responsable.

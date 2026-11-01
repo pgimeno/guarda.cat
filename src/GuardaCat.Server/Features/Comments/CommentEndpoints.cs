@@ -4,6 +4,8 @@ using GuardaCat.Server.Data;
 using GuardaCat.Server.Features.Posts;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using GuardaCat.Server.Features.Outbox;
+using Microsoft.Extensions.Options;
 
 namespace GuardaCat.Server.Features.Comments;
 
@@ -41,21 +43,30 @@ public static class CommentEndpoints
     }
 
     private static async Task<IResult> CreateAsync(Guid id, CreateCommentRequest request, ClaimsPrincipal user,
-        ApplicationDbContext db, CancellationToken ct)
+        ApplicationDbContext db, IOptions<EmailOptions> email, CancellationToken ct)
     {
         request.Body = request.Body?.Trim() ?? string.Empty;
         var error = PostValidation.Validate(request);
         if (error is not null) return error;
-        if (!await db.Posts.AnyAsync(post => post.Id == id, ct)) return PostValidation.NotFound();
+        var post = await db.Posts.Where(value => value.Id == id)
+            .Select(value => new { value.AuthorId, value.Author.Email, value.Title }).SingleOrDefaultAsync(ct);
+        if (post is null) return PostValidation.NotFound();
         var comment = new Comment { PostId = id, AuthorId = PostEndpoints.UserId(user), Body = request.Body };
+        var name = await db.Users.Where(author => author.Id == comment.AuthorId).Select(author => author.DisplayName).SingleAsync(ct);
         db.Comments.Add(comment);
+        // One SaveChanges transaction persists both records. No notice for a self-comment.
+        if (post.AuthorId != comment.AuthorId && !string.IsNullOrWhiteSpace(post.Email))
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                Kind = OutboxMessage.Email, CommentId = comment.Id, Recipient = post.Email, Subject = "Nou comentari a Guarda.cat",
+                Body = $"{name} ha comentat la teva publicació «{post.Title}».\n\n{email.Value.PublicBaseUrl.TrimEnd('/')}/posts/{id}"
+            });
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.ForeignKeyViolation, ConstraintName: "FK_Comments_Posts_PostId" })
         {
             return PostValidation.NotFound();
         }
-        var name = await db.Users.Where(author => author.Id == comment.AuthorId).Select(author => author.DisplayName).SingleAsync(ct);
         return Results.Created($"/api/public/posts/{id}/comments",
             new CommentResponse(comment.Id, comment.AuthorId, name, comment.Body, comment.CreatedAtUtc));
     }

@@ -1038,6 +1038,17 @@ h1[tabindex="-1"]:focus,
 .publication-actions button:hover { color: var(--gc-accent-strong); }
 .delete-confirm { margin-top: 20px; padding: 16px; border: 1px solid #dfbbc5; border-radius: 8px; background: #fff5f6; }
 
+.media-editor { margin: 28px 0; padding-top: 20px; border-top: 1px solid var(--gc-line); }
+.media-gallery { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+.media-gallery figure { margin: 0; max-width: 100%; }
+.media-gallery figcaption { margin-top: 8px; }
+.post-image { display: block; max-width: 100%; height: auto; max-height: 560px; object-fit: contain; border-radius: 8px; }
+.markdown-body img { display: block; max-width: 100%; height: auto; border-radius: 8px; }
+.profile-avatar { width: 96px; height: 96px; object-fit: cover; border-radius: 50%; }
+.avatar-initials { display: inline-grid; place-items: center; flex-shrink: 0; background: var(--gc-accent-soft); color: var(--gc-accent-strong); font-size: 1.6rem; font-weight: 700; }
+.media-upload { display: grid; gap: 8px; font-weight: 600; }
+.media-upload input { max-width: 100%; }
+
 @media (prefers-reduced-motion: reduce) {
     html {
         scroll-behavior: auto;

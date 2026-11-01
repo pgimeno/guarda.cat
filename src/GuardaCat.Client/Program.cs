@@ -16,6 +16,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthClient>();
 builder.Services.AddScoped<GuardaCat.Client.Features.Posts.PostsClient>();
 builder.Services.AddScoped<GuardaCat.Client.Features.Profiles.ProfilesClient>();
+builder.Services.AddScoped<GuardaCat.Client.Features.Media.MediaClient>();
 builder.Services.AddScoped<CookieAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
     sp.GetRequiredService<CookieAuthenticationStateProvider>());

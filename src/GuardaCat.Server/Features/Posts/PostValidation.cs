@@ -25,7 +25,7 @@ internal static class PostValidation
 
     public static IResult ImagesNotSupported() => Results.ValidationProblem(new Dictionary<string, string[]>
     {
-        ["BodyMarkdown"] = ["Les imatges encara no estan disponibles. Retira-les del Markdown."]
+        ["BodyMarkdown"] = ["El Markdown només pot incloure imatges pujades a aquesta publicació. Retira les imatges externes, alienes o eliminades."]
     });
 
     public static IResult NotFound() => Results.Problem(statusCode: 404, title: "La publicació no existeix.");

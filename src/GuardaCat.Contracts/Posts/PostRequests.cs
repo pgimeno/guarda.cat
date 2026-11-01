@@ -18,6 +18,7 @@ public sealed class SavePostRequest
 
 public sealed class PreviewRequest
 {
+    public Guid? PostId { get; set; }
     [Required(ErrorMessage = "Escriu el contingut.")]
     [StringLength(50_000, ErrorMessage = "El contingut no pot superar els 50.000 caràcters.")]
     public string BodyMarkdown { get; set; } = string.Empty;

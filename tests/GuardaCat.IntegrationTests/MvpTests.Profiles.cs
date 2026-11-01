@@ -32,7 +32,7 @@ public sealed partial class MvpTests
         Assert.False(publicRead.Headers.Contains("Set-Cookie"));
         Assert.False(signedRead.Headers.Contains("Set-Cookie"));
         using var document = JsonDocument.Parse(json);
-        Assert.Equal(new[] { "bio", "displayName", "id" },
+        Assert.Equal(new[] { "avatar", "bio", "displayName", "id" },
             document.RootElement.EnumerateObject().Select(property => property.Name).OrderBy(name => name));
         var profile = JsonSerializer.Deserialize(json, ProfilesJsonContext.Default.ProfileResponse)!;
         Assert.Equal(new ProfileResponse(id, "Usuari de prova", null), profile);
