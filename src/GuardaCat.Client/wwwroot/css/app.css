@@ -964,6 +964,8 @@ h1[tabindex="-1"]:focus,
 .post-row h2 { font-size: 1.25rem; line-height: 1.3; margin: 8px 0; overflow-wrap: anywhere; }
 .post-row h2 a:hover { color: var(--gc-accent); text-decoration: underline; }
 .post-meta { color: var(--gc-muted); font-size: 0.8rem; }
+.post-meta a:hover { color: var(--gc-accent-strong); text-decoration: underline; }
+.profile-bio { margin: 0 0 24px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--gc-muted); }
 .post-excerpt { margin-bottom: 12px; color: var(--gc-muted); overflow-wrap: anywhere; white-space: pre-line; }
 .active-filter { margin-bottom: 12px; padding: 10px 13px; border: 1px solid var(--gc-line); border-radius: 9px; background: var(--gc-surface); color: var(--gc-muted); font-size: 0.82rem; }
 .active-filter a { color: var(--gc-accent-strong); font-weight: 700; }

@@ -36,7 +36,7 @@
         @if (data.Items.Count == 0 && published is null) { <p class="empty-comments">Encara no hi ha comentaris. Sigues la primera persona a respondre.</p> }
         @foreach (var comment in data.Items.Where(comment => comment.Id != published?.Id))
         {
-            <article class="comment" @key="comment.Id"><p class="post-meta">@comment.AuthorName · @comment.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p><p class="comment-body">@comment.Body</p></article>
+            <article class="comment" @key="comment.Id"><p class="post-meta"><a href="@($"/users/{comment.AuthorId}")">@comment.AuthorName</a> · @comment.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p><p class="comment-body">@comment.Body</p></article>
         }
         <nav class="pagination" aria-label="Pàgines de comentaris">
             <button class="session-link" disabled="@(page <= 1 || busy)" @onclick="() => ChangePageAsync(page - 1)">← Anterior</button>

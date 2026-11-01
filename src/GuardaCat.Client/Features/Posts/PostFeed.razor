@@ -23,7 +23,7 @@
         @foreach (var post in data.Items)
         {
             <article class="post-row" @key="post.Id">
-                <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+                <p class="post-meta"><a href="@($"/users/{post.AuthorId}")">@post.AuthorName</a> · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
                 <h2><a href="@($"/posts/{post.Id}")">@post.Title</a></h2>
                 <p class="post-excerpt">@post.Excerpt</p>
                 @if (post.Tags.Count > 0)
@@ -53,7 +53,8 @@
     [Parameter] public int Page { get; set; } = 1;
     [Parameter] public bool Own { get; set; }
     [Parameter] public string? Tag { get; set; }
-    private string BasePath => Own ? "/my-posts" : "/";
+    [Parameter] public Guid? AuthorId { get; set; }
+    private string BasePath => Own ? "/my-posts" : AuthorId is { } id ? $"/users/{id}" : "/";
     private string PageHref(int page) => string.IsNullOrWhiteSpace(Tag)
         ? $"{BasePath}?page={page}"
         : $"{BasePath}?page={page}&tag={Uri.EscapeDataString(Tag)}";
@@ -71,7 +72,7 @@
         cancellation = new();
         var ct = cancellation.Token;
         loading = true;
-        var result = await Posts.ListAsync(Page, Own, Tag, ct);
+        var result = await Posts.ListAsync(Page, Own, Tag, ct, AuthorId);
         if (ct.IsCancellationRequested) return;
         data = result.Value;
         error = result.Error;

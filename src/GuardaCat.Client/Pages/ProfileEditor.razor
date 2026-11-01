@@ -1,0 +1,80 @@
+@page "/my-profile"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
+@inject ProfilesClient Profiles
+@inject CookieAuthenticationStateProvider Session
+
+<PageTitle>El meu perfil — Guarda.cat</PageTitle>
+<section class="content-page">
+    <header class="page-heading">
+        <h1>El meu perfil</h1>
+        @if (profileId is { } id) { <a href="@($"/users/{id}")">Veure el perfil públic</a> }
+    </header>
+    @if (error is not null) { <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div> }
+    @if (saved) { <p role="status">S'han desat els canvis del perfil.</p> }
+    @if (loading) { <p role="status">Carregant el perfil…</p> }
+    else if (profileId is not null)
+    {
+        <div class="editor-panel">
+            <EditForm Model="model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+                <MudTextField T="string" Label="Nom públic" @bind-Value="model.DisplayName" For="@(() => model.DisplayName)"
+                              MaxLength="60" Disabled="busy" />
+                <MudTextField T="string" Label="Biografia" @bind-Value="model.Bio" For="@(() => model.Bio)"
+                              Lines="5" MaxLength="500" Disabled="busy" HelperText="Opcional, fins a 500 caràcters de text." />
+                <div class="page-actions">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">Desa els canvis</MudButton>
+                    <a href="@($"/users/{profileId}")">Cancel·la</a>
+                </div>
+                <p class="post-meta">El nom i la biografia són públics.</p>
+            </EditForm>
+        </div>
+    }
+    else { <button class="secondary-action" @onclick="LoadAsync">Torna-ho a provar</button> }
+</section>
+
+@code {
+    private readonly CancellationTokenSource cancellation = new();
+    private UpdateProfileRequest model = new();
+    private Guid? profileId;
+    private string? error;
+    private bool loading, busy, saved;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true; error = null;
+        var result = await Profiles.GetOwnAsync(cancellation.Token);
+        if (cancellation.IsCancellationRequested) return;
+        error = result.Error;
+        if (result.Value is { } profile)
+        {
+            profileId = profile.Id;
+            model = new() { DisplayName = profile.DisplayName, Bio = profile.Bio };
+        }
+        loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (busy) return;
+        busy = true; saved = false;
+        try
+        {
+            var result = await Profiles.UpdateAsync(model, cancellation.Token);
+            if (cancellation.IsCancellationRequested) return;
+            error = result.Error;
+            if (result.Value is { } profile)
+            {
+                profileId = profile.Id;
+                model = new() { DisplayName = profile.DisplayName, Bio = profile.Bio };
+                saved = true;
+                await Session.RefreshAsync();
+            }
+        }
+        finally { busy = false; }
+    }
+
+    public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }
+}

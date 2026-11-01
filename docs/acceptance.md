@@ -84,7 +84,7 @@ Comando reproducible desde la raíz, con el artefacto sirviéndose en HTTPS:
 
 La interfaz se comprobó sin errores de consola en la revisión final. La paginación usa desplazamiento: el orden es determinista, pero publicaciones o eliminaciones concurrentes pueden desplazar páginas. No se ha implantado todavía caché CDN.
 
-**Siguiente paso:** validar la primera entrega de fase 3 y aplicar `TagsAndPostLikes`; después continuar con perfiles, imágenes y outbox.
+**Siguiente paso:** validar tags, likes y perfiles, aplicar las migraciones pendientes en desarrollo y continuar con imágenes (incluidos avatares) y outbox.
 
 ## Fase 3: primera entrega pendiente de validación
 
@@ -93,9 +93,22 @@ La interfaz se comprobó sin errores de consola en la revisión final. La pagina
 - [ ] Like único e idempotente por usuario, únicamente en posts; sin likes en comentarios ni downvotes.
 - [ ] Migración `TagsAndPostLikes`, contrato OpenAPI y pruebas de integración preparados, aún no ejecutados.
 
+## Fase 3: perfiles implementados, revisión del 01/11/2026
+
+- [x] Contratos y serialización generada para nombre público y bio; límites de 2–60 y 500 caracteres respectivamente.
+- [x] Perfil público `GET /api/public/users/{id}`, sin email ni datos de Identity; edición propia mediante `GET/PUT /api/me/profile`, con autenticación, CSRF en escritura y `no-store`.
+- [x] Páginas `/users/{id}` y `/my-profile`, publicaciones paginadas por autor y enlaces desde cabecera, posts y comentarios. Tras guardar se refleja la respuesta confirmada y se refresca el nombre de la sesión.
+- [x] Reutilización de las columnas existentes; no se añade migración. Bio en texto plano, renderizada con el escape normal de Razor.
+- [x] Compilación Release de la solución, incluidos los tests: sin advertencias ni errores.
+- [ ] Ejecutar las seis pruebas de perfiles añadidas en `MvpTests.Profiles.cs` y la suite de regresión. `GUARDACAT_TEST_POSTGRES` no está configurada en esta sesión; no se han ejecutado pruebas de integración ni modificado bases de datos.
+- [ ] En navegador: abrir el perfil desde un autor/comentario y desde la cabecera; editar nombre/bio, recargar y comprobar persistencia y actualización del nombre; probar perfil sin posts, ID inexistente y paginación manteniendo el autor.
+- [ ] En navegador: comprobar que HTML en nombre/bio se muestra como texto, el diseño en móvil y que otro usuario no dispone del enlace de edición del perfil ajeno.
+
+Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura pública, identidad de sesión frente a IDs manipulados, preservación de campos de Identity, autenticación, CSRF, límites, borrado de bio, propagación del nombre a posts/comentarios y OpenAPI. El filtro y la paginación por autor también tienen cobertura previa en `MvpTests.cs`. Si dos sesiones editan el mismo perfil, prevalece la última escritura. Avatares e imágenes quedan para la siguiente entrega; después, outbox.
+
 ## Fases posteriores
 
-- [ ] Fase 3: validar tags/filtro y likes en posts; después perfiles, imágenes y outbox.
+- [ ] Fase 3: validar tags/filtro, likes en posts y perfiles; después imágenes y outbox.
 - [ ] Fase 4: Dockerfile único y modos web/migración. La prueba de claves compartidas ya está cubierta, pero no completa esta fase.
 - [ ] Fases 5–7: AWS/Terraform, CI/CD, backups y restauración, alarmas, presupuesto y entrega.
 

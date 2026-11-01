@@ -4,7 +4,7 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-La base local (fase 1) y el MVP funcional (fase 2) están implementados. La primera entrega de la fase 3 añade tags, filtro y likes limitados a posts; queda pendiente validarla y continuar con perfiles, imágenes y outbox.
+La base local (fase 1) y el MVP funcional (fase 2) están implementados. La fase 3 incorpora tags, filtro, likes limitados a posts y perfiles con nombre y bio. Queda pendiente la validación funcional de estas entregas; después vendrán imágenes (incluidos avatares) y outbox.
 
 Revisión del 31/10/2026:
 
@@ -17,7 +17,7 @@ Revisión del 31/10/2026:
 - [x] Publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
 - [ ] Tags, filtro y likes solo en posts implementados; compilación, migración y pruebas pendientes de ejecutar.
 
-**Próximo paso:** compilar, ejecutar las pruebas y aplicar las migraciones `PostsAndComments` y `TagsAndPostLikes` en la base de desarrollo. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** ejecutar las pruebas de integración y revisar los perfiles en navegador. La solución compila en Release a 01/11/2026. Aplicar las migraciones anteriores pendientes (`PostsAndComments` y `TagsAndPostLikes`) antes de usar la base de desarrollo; los perfiles reutilizan el esquema existente. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
 
 ## Requisitos locales
 
@@ -78,6 +78,15 @@ Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, 
 - Cada usuario autenticado puede dar o retirar un único like por post. Las operaciones son idempotentes; no existen likes en comentarios ni downvotes. El límite es 60 mutaciones de like por minuto/IP.
 - Consultas públicas sin emails, permisos privados ni cookies de respuesta. Escrituras autenticadas con CSRF. Comentarios: 10/minuto/IP; vista previa: 30/minuto/IP.
 - OpenAPI disponible solo en Development: `/openapi/v1.json`, con DTO, límites y códigos de respuesta. Rutas públicas `/api/public/posts` y `/api/public/posts/{id}/comments`; rutas privadas `/api/me/posts`, `/api/posts`, `/api/posts/{id}/like` y `/api/posts/preview`.
+
+## Perfiles de usuario
+
+- `/users/{id}` muestra nombre, bio como texto plano y publicaciones paginadas del usuario. Los autores de posts y comentarios enlazan a su perfil.
+- `/my-profile` permite editar el perfil propio y se abre desde el nombre de la cabecera. Tras guardar, muestra la respuesta confirmada y actualiza el nombre de la sesión.
+- `GET /api/public/users/{id}` devuelve solo ID, nombre y bio; idénticos para visitantes con o sin sesión, sin emitir cookies. Un perfil inexistente devuelve 404.
+- `GET /api/me/profile` obtiene los datos actuales para edición y `PUT /api/me/profile` modifica únicamente el usuario de la sesión. Ambas rutas requieren autenticación y usan `no-store`; la escritura exige CSRF.
+- Nombre público de 2–60 caracteres y bio opcional de hasta 500, tras recortar espacios exteriores. Una bio vacía se guarda como `null`. La escritura actualiza solo esas columnas; dos ediciones simultáneas del perfil conservan la última escritura.
+- Se reutilizan `ApplicationUser.DisplayName` y `Bio`: sin nueva migración ni dependencias. Avatares aplazados a la entrega de imágenes.
 
 ## Publicación Release y comprobación del artefacto
 

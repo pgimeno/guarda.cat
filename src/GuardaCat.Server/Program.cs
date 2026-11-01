@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 using GuardaCat.Server.Features.Posts;
 using GuardaCat.Server.Features.Comments;
+using GuardaCat.Server.Features.Profiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -110,6 +111,7 @@ app.UseRateLimiter();
 app.MapAuthEndpoints();
 app.MapPostEndpoints();
 app.MapCommentEndpoints();
+app.MapProfileEndpoints();
 
 var health = app.MapGroup("/api/health").AllowAnonymous();
 

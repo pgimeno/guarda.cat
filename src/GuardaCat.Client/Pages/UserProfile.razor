@@ -1,0 +1,50 @@
+@page "/users/{Id:guid}"
+@implements IDisposable
+@inject ProfilesClient Profiles
+
+<PageTitle>@(profile?.DisplayName ?? "Perfil") — Guarda.cat</PageTitle>
+<section class="content-page">
+    @if (loading) { <p role="status">Carregant el perfil…</p> }
+    else if (error is not null)
+    {
+        <div role="alert"><MudAlert Severity="Severity.Error">@error</MudAlert></div>
+        <button class="secondary-action" @onclick="LoadAsync">Torna-ho a provar</button>
+    }
+    else if (profile is not null)
+    {
+        <header class="page-heading">
+            <h1>@profile.DisplayName</h1>
+            <AuthorizeView>
+                @if (context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == Id.ToString())
+                {
+                    <a href="/my-profile">Edita el perfil</a>
+                }
+            </AuthorizeView>
+        </header>
+        <p class="profile-bio">@(profile.Bio ?? "Encara no ha afegit una biografia.")</p>
+        <PostFeed Page="@(Page ?? 1)" AuthorId="Id" @key="Id" />
+    }
+</section>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] public int? Page { get; set; }
+    private CancellationTokenSource? cancellation;
+    private ProfileResponse? profile;
+    private string? error;
+    private bool loading;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cancellation?.Cancel(); cancellation?.Dispose(); cancellation = new();
+        var ct = cancellation.Token;
+        loading = true; profile = null; error = null;
+        var result = await Profiles.GetAsync(Id, ct);
+        if (ct.IsCancellationRequested) return;
+        profile = result.Value; error = result.Error; loading = false;
+    }
+
+    public void Dispose() { cancellation?.Cancel(); cancellation?.Dispose(); }
+}

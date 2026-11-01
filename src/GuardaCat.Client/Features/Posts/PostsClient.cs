@@ -13,9 +13,10 @@ public sealed class PostsClient(HttpClient http)
 {
     private static PostsJsonContext Json => PostsJsonContext.Default;
 
-    public Task<ApiResult<PagedResponse<PostSummaryResponse>>> ListAsync(int page, bool own, string? tag, CancellationToken ct)
+    public Task<ApiResult<PagedResponse<PostSummaryResponse>>> ListAsync(int page, bool own, string? tag, CancellationToken ct, Guid? authorId = null)
     {
         var filter = string.IsNullOrWhiteSpace(tag) ? string.Empty : $"&tag={Uri.EscapeDataString(tag)}";
+        if (!own && authorId is not null) filter += $"&authorId={authorId}";
         return SendAsync(HttpMethod.Get, $"api/{(own ? "me" : "public")}/posts?page={page}{filter}", null,
             Json.PagedResponsePostSummaryResponse, ct);
     }

@@ -13,7 +13,7 @@
     {
         <div class="publication-thread">
         <article class="publication-post">
-            <p class="post-meta">@post.AuthorName · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+            <p class="post-meta"><a href="@($"/users/{post.AuthorId}")">@post.AuthorName</a> · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
             <h1>@post.Title</h1>
             @if (post.UpdatedAtUtc is { } updated) { <p class="post-meta">Editat el @updated.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p> }
             @if (post.Tags.Count > 0)

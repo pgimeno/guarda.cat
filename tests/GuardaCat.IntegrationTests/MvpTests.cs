@@ -13,7 +13,7 @@ using Xunit;
 
 namespace GuardaCat.IntegrationTests;
 
-public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresFixture>
+public sealed partial class MvpTests(PostgresFixture database) : IClassFixture<PostgresFixture>
 {
     [Fact]
     public async Task Public_reads_do_not_renew_cookies_even_when_identity_validation_is_due()
