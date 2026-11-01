@@ -13,7 +13,7 @@ public static class CommentEndpoints
     {
         endpoints.MapGet("/api/public/posts/{id:guid}/comments", ListAsync).AllowAnonymous()
             .Produces<PagedResponse<CommentResponse>>().ProducesProblem(400).ProducesProblem(404)
-            .WithDescription("Lectura anónima. page >= 1; pageSize 1–50 (20 por defecto). Orden: fecha e ID ascendentes.");
+            .WithDescription("Lectura anónima. page >= 1; pageSize 1–50 (20 por defecto). sort: newest (por defecto) u oldest. Desempate estable por ID.");
         endpoints.MapPost("/api/posts/{id:guid}/comments", CreateAsync)
             .RequireAuthorization().RequireRateLimiting("comments")
             .Produces<CommentResponse>(201).ProducesProblem(400).ProducesProblem(401).ProducesProblem(404).ProducesProblem(429)
@@ -21,13 +21,19 @@ public static class CommentEndpoints
     }
 
     private static async Task<IResult> ListAsync(Guid id, ApplicationDbContext db, CancellationToken ct,
-        int page = 1, int pageSize = 20)
+        int page = 1, int pageSize = 20, string sort = "newest")
     {
         if (!PostValidation.ValidPage(page, pageSize)) return PostValidation.InvalidPage();
+        if (sort is not ("newest" or "oldest"))
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "L'ordre ha de ser 'newest' o 'oldest'.");
         if (!await db.Posts.AnyAsync(post => post.Id == id, ct)) return PostValidation.NotFound();
         var query = db.Comments.AsNoTracking().Where(comment => comment.PostId == id);
         var count = await query.CountAsync(ct);
-        var comments = await query.OrderBy(comment => comment.CreatedAtUtc).ThenBy(comment => comment.Id)
+        var ordered = sort == "oldest"
+            ? query.OrderBy(comment => comment.CreatedAtUtc).ThenBy(comment => comment.Id)
+            : query.OrderByDescending(comment => comment.CreatedAtUtc).ThenByDescending(comment => comment.Id);
+        var comments = await ordered
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(comment => new CommentResponse(comment.Id, comment.AuthorId, comment.Author.DisplayName,
                 comment.Body, comment.CreatedAtUtc)).ToListAsync(ct);

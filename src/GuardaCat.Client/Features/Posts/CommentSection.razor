@@ -17,6 +17,14 @@
         </Authorized>
         <NotAuthorized><p class="comment-login"><a href="/login">Inicia sessió</a> per comentar.</p></NotAuthorized>
     </AuthorizeView>
+    <div class="comment-toolbar">
+        <label class="visually-hidden" for="comment-sort">Ordena els comentaris</label>
+        <select id="comment-sort" class="comment-sort" value="@sort" @onchange="ChangeSortAsync"
+                disabled="@(busy || loading)" aria-label="Ordena els comentaris">
+            <option value="newest">Més recents</option>
+            <option value="oldest">Més antics</option>
+        </select>
+    </div>
     @if (published is not null)
     {
         <article class="comment is-new" role="status"><p class="post-meta">El teu comentari s'ha publicat.</p><p class="comment-body">@published.Body</p></article>
@@ -46,6 +54,7 @@
     private PagedResponse<CommentResponse>? data;
     private CommentResponse? published;
     private string? error;
+    private string sort = "newest";
     private int page = 1;
     private bool loading, busy;
 
@@ -53,7 +62,7 @@
     private async Task LoadAsync()
     {
         loading = true;
-        var result = await Posts.CommentsAsync(PostId, page, cancellation.Token);
+        var result = await Posts.CommentsAsync(PostId, page, sort, cancellation.Token);
         if (cancellation.IsCancellationRequested) return;
         data = result.Value; error = result.Error; loading = false;
         if (data is not null) await OnCommentCountChanged.InvokeAsync(data.TotalCount);
@@ -62,6 +71,15 @@
     {
         if (busy || loading) return;
         published = null; page = next; await LoadAsync();
+    }
+    private async Task ChangeSortAsync(ChangeEventArgs args)
+    {
+        var next = args.Value?.ToString();
+        if (busy || loading || next == sort || next is not ("newest" or "oldest")) return;
+        published = null;
+        sort = next;
+        page = 1;
+        await LoadAsync();
     }
     private async Task SendAsync()
     {

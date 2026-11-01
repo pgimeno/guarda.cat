@@ -42,8 +42,9 @@ public sealed class PostsClient(HttpClient http)
     public Task<ApiResult<LikeResponse>> SetLikeAsync(Guid id, bool liked, CancellationToken ct) =>
         SendAsync(liked ? HttpMethod.Put : HttpMethod.Delete, $"api/posts/{id}/like", null, Json.LikeResponse, ct);
 
-    public Task<ApiResult<PagedResponse<CommentResponse>>> CommentsAsync(Guid id, int page, CancellationToken ct) =>
-        SendAsync(HttpMethod.Get, $"api/public/posts/{id}/comments?page={page}", null, Json.PagedResponseCommentResponse, ct);
+    public Task<ApiResult<PagedResponse<CommentResponse>>> CommentsAsync(Guid id, int page, string sort, CancellationToken ct) =>
+        SendAsync(HttpMethod.Get, $"api/public/posts/{id}/comments?page={page}&sort={Uri.EscapeDataString(sort)}", null,
+            Json.PagedResponseCommentResponse, ct);
 
     public Task<ApiResult<CommentResponse>> CommentAsync(Guid id, CreateCommentRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"api/posts/{id}/comments", JsonContent.Create(request, Json.CreateCommentRequest), Json.CommentResponse, ct);

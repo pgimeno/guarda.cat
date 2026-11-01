@@ -163,14 +163,31 @@ public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresF
         Assert.Empty(theirs!.Items);
 
         var postId = first.Items[0].Id;
+        var createdComments = new List<CommentResponse>();
         for (var index = 0; index < 3; index++)
         {
             using var response = await Mutate(other, HttpMethod.Post, $"/api/posts/{postId}/comments", new CreateCommentRequest { Body = $"Comentari {index}" });
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            createdComments.Add((await response.Content.ReadFromJsonAsync<CommentResponse>())!);
         }
-        var comments = await author.GetFromJsonAsync<PagedResponse<CommentResponse>>($"/api/public/posts/{postId}/comments?pageSize=2&page=2");
-        Assert.Equal(3, comments!.TotalCount);
-        Assert.Equal("Comentari 2", Assert.Single(comments.Items).Body);
+        using (var scope = host.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var ids = createdComments.Select(comment => comment.Id).ToList();
+            var storedComments = await db.Comments.Where(comment => ids.Contains(comment.Id)).ToListAsync();
+            foreach (var comment in storedComments) comment.CreatedAtUtc = instant;
+            await db.SaveChangesAsync();
+        }
+
+        var newest = await author.GetFromJsonAsync<PagedResponse<CommentResponse>>(
+            $"/api/public/posts/{postId}/comments?pageSize=3");
+        var oldest = await author.GetFromJsonAsync<PagedResponse<CommentResponse>>(
+            $"/api/public/posts/{postId}/comments?pageSize=3&sort=oldest");
+        Assert.Equal(3, newest!.TotalCount);
+        Assert.Equal(createdComments.OrderByDescending(comment => comment.Id).Select(comment => comment.Id),
+            newest.Items.Select(comment => comment.Id));
+        Assert.Equal(createdComments.OrderBy(comment => comment.Id).Select(comment => comment.Id),
+            oldest!.Items.Select(comment => comment.Id));
     }
 
     [Fact]
@@ -254,6 +271,15 @@ public sealed class MvpTests(PostgresFixture database) : IClassFixture<PostgresF
         using var comments = await client.GetAsync($"/api/public/posts/{Guid.NewGuid()}/comments?{query}");
         Assert.Equal(HttpStatusCode.BadRequest, posts.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, comments.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invalid_comment_sort_is_rejected()
+    {
+        await using var host = database.CreateHost();
+        using var client = Client(host);
+        using var response = await client.GetAsync($"/api/public/posts/{Guid.NewGuid()}/comments?sort=popular");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Theory]
