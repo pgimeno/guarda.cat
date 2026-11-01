@@ -2,6 +2,7 @@ using System.Security.Claims;
 using GuardaCat.Contracts.Posts;
 using GuardaCat.Server.Data;
 using GuardaCat.Server.Features.Posts;
+using GuardaCat.Server.Features.Media;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using GuardaCat.Server.Features.Outbox;
@@ -39,6 +40,11 @@ public static class CommentEndpoints
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(comment => new CommentResponse(comment.Id, comment.AuthorId, comment.Author.DisplayName,
                 comment.Body, comment.CreatedAtUtc)).ToListAsync(ct);
+        var authorIds = comments.Select(comment => comment.AuthorId).Distinct().ToList();
+        var avatars = await db.MediaAssets.AsNoTracking()
+            .Where(asset => authorIds.Contains(asset.OwnerId) && asset.PostId == null)
+            .ToDictionaryAsync(asset => asset.OwnerId, MediaService.Response, ct);
+        comments = comments.Select(comment => comment with { AuthorAvatar = avatars.GetValueOrDefault(comment.AuthorId) }).ToList();
         return Results.Ok(new PagedResponse<CommentResponse>(comments, page, pageSize, count));
     }
 
@@ -68,6 +74,15 @@ public static class CommentEndpoints
             return PostValidation.NotFound();
         }
         return Results.Created($"/api/public/posts/{id}/comments",
-            new CommentResponse(comment.Id, comment.AuthorId, name, comment.Body, comment.CreatedAtUtc));
+            new CommentResponse(comment.Id, comment.AuthorId, name, comment.Body, comment.CreatedAtUtc,
+                await AvatarAsync(comment.AuthorId, db, ct)));
+    }
+
+    private static async Task<GuardaCat.Contracts.Media.MediaResponse?> AvatarAsync(Guid authorId, ApplicationDbContext db,
+        CancellationToken ct)
+    {
+        var avatar = await db.MediaAssets.AsNoTracking()
+            .SingleOrDefaultAsync(asset => asset.OwnerId == authorId && asset.PostId == null, ct);
+        return avatar is null ? null : MediaService.Response(avatar);
     }
 }

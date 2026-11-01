@@ -115,11 +115,13 @@ Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura públi
 - [x] Worker con reclamación atómica, SKIP LOCKED, lease, timeout, confirmación condicionada al token y reintentos sin descarte.
 - [x] Migraciones `MediaAndOutbox` y `CommentNotificationOwnership` generadas, sin aplicarlas a bases de datos.
 - [x] Compilación Release sin errores ni advertencias. Quince pruebas aisladas de validación de imágenes y Markdown superadas.
-- [ ] Suite PostgreSQL preparada; `GUARDACAT_TEST_POSTGRES` ausente, no ejecutada. Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente.
+- [x] Suite completa PostgreSQL ejecutada el 01/11/2026: 66 superadas, 0 fallidas, 0 omitidas (19 s). Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente. Bases temporales creadas y eliminadas por los fixtures; no se modifica `guardacat`.
 - [ ] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites y dos usuarios. Comprobar que las URLs eliminadas devuelven 404.
 - [ ] Integración S3/SES, contenedor Linux y configuración CloudFront por validar en fases posteriores.
 
 El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración, desviaciones justificadas y criterios pendientes. No se acredita la fase 3 completa ni despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
+
+Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciertos, tres fallos): las fechas del host se comparaban con `now()` de PostgreSQL y un desfase de aproximadamente medio segundo impedía reclamar tareas recién creadas. Se unifican los plazos de cola en el reloj PostgreSQL y las tareas inmediatas se marcan ya vencidas. Verificación: tres pruebas del outbox superadas y, después, suite completa de 66 superadas. No requiere migración adicional.
 
 ## Fases posteriores
 

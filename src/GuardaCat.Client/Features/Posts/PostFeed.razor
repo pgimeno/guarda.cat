@@ -23,7 +23,14 @@
         @foreach (var post in data.Items)
         {
             <article class="post-row" @key="post.Id">
-                <p class="post-meta"><a href="@($"/users/{post.AuthorId}")">@post.AuthorName</a> · @post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+                <p class="post-meta author-meta">
+                    <a class="author-identity" href="@($"/users/{post.AuthorId}")">
+                        <AuthorAvatar Name="@post.AuthorName" Avatar="post.AuthorAvatar" />
+                        <span>@post.AuthorName</span>
+                    </a>
+                    <span aria-hidden="true">·</span>
+                    <time datetime="@post.CreatedAtUtc.ToString("O")">@post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</time>
+                </p>
                 <h2><a href="@($"/posts/{post.Id}")">@post.Title</a></h2>
                 <p class="post-excerpt">@post.Excerpt</p>
                 @if (post.Tags.Count > 0)

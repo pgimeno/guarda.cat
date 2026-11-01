@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GuardaCat.Contracts.Media;
 using GuardaCat.Contracts.Posts;
 using GuardaCat.Server.Data;
 using Microsoft.EntityFrameworkCore;
@@ -80,8 +81,13 @@ public static class PostEndpoints
             .Select(post => new PostSummaryResponse(post.Id, post.Title,
                 post.BodyMarkdown.Substring(0, Math.Min(post.BodyMarkdown.Length, 200)),
                 post.AuthorId, post.Author.DisplayName, post.CreatedAtUtc, post.Comments.Count, post.Likes.Count,
-                post.PostTags.OrderBy(postTag => postTag.TagName).Select(postTag => postTag.TagName).ToList()))
+                post.PostTags.OrderBy(postTag => postTag.TagName).Select(postTag => postTag.TagName).ToList(), null))
             .ToListAsync(ct);
+        var authorIds = items.Select(post => post.AuthorId).Distinct().ToList();
+        var avatars = await db.MediaAssets.AsNoTracking()
+            .Where(asset => authorIds.Contains(asset.OwnerId) && asset.PostId == null)
+            .ToDictionaryAsync(asset => asset.OwnerId, MediaService.Response, ct);
+        items = items.Select(post => post with { AuthorAvatar = avatars.GetValueOrDefault(post.AuthorId) }).ToList();
         return Results.Ok(new PagedResponse<PostSummaryResponse>(items, page, pageSize, total));
     }
 
@@ -97,7 +103,8 @@ public static class PostEndpoints
         if (post is null) return PostValidation.NotFound();
         markdown.TryRender(post.BodyMarkdown, out var html, await ImageUrlsAsync(id, db, ct), omitUnavailable: true);
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
-            post.AuthorName, post.CreatedAtUtc, post.UpdatedAtUtc, post.CommentCount, post.LikeCount, post.Tags));
+            post.AuthorName, post.CreatedAtUtc, post.UpdatedAtUtc, post.CommentCount, post.LikeCount, post.Tags,
+            await AvatarAsync(post.AuthorId, db, ct)));
     }
 
     private static async Task<IResult> EditAsync(Guid id, ClaimsPrincipal user, ApplicationDbContext db, CancellationToken ct)
@@ -133,7 +140,8 @@ public static class PostEndpoints
         await db.SaveChangesAsync(ct);
         var name = await db.Users.Where(author => author.Id == post.AuthorId).Select(author => author.DisplayName).SingleAsync(ct);
         return Results.Created($"/api/public/posts/{post.Id}",
-            new PostResponse(post.Id, post.Title, html, post.AuthorId, name, post.CreatedAtUtc, null, 0, 0, tags));
+            new PostResponse(post.Id, post.Title, html, post.AuthorId, name, post.CreatedAtUtc, null, 0, 0, tags,
+                await AvatarAsync(post.AuthorId, db, ct)));
     }
 
     private static Task<IResult> UpdateAsync(Guid id, SavePostRequest request, ClaimsPrincipal user,
@@ -167,12 +175,19 @@ public static class PostEndpoints
             .SingleAsync(ct);
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
             post.Author.DisplayName, post.CreatedAtUtc, post.UpdatedAtUtc,
-            counts.CommentCount, counts.LikeCount, tags));
+            counts.CommentCount, counts.LikeCount, tags, await AvatarAsync(post.AuthorId, db, ct)));
     }, ct);
 
     private static async Task<HashSet<string>> ImageUrlsAsync(Guid postId, ApplicationDbContext db, CancellationToken ct) =>
         (await db.MediaAssets.Where(asset => asset.PostId == postId).Select(asset => asset.Id).ToListAsync(ct))
             .Select(MediaService.Url).ToHashSet(StringComparer.Ordinal);
+
+    private static async Task<MediaResponse?> AvatarAsync(Guid authorId, ApplicationDbContext db, CancellationToken ct)
+    {
+        var avatar = await db.MediaAssets.AsNoTracking()
+            .SingleOrDefaultAsync(asset => asset.OwnerId == authorId && asset.PostId == null, ct);
+        return avatar is null ? null : MediaService.Response(avatar);
+    }
 
     private static Task<IResult> DeleteAsync(Guid id, ClaimsPrincipal user, MediaService media, CancellationToken ct) =>
         media.DeletePostAsync(id, UserId(user), ct);

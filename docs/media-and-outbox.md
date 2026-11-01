@@ -1,6 +1,6 @@
 # Medios y outbox — entrega del 01/11/2026
 
-Implementación de la fase 3. No acredita despliegue AWS ni ejecución de la suite PostgreSQL. Se han revisado `README.md`, `architecture.md`, `acceptance.md` y los documentos `plan_codificador.md` y `enunciado_1_plataforma_social.md` de `C:\Users\Usuario\Desktop\Documentacion_Proyecto`.
+Implementación de la fase 3. La suite completa se verificó el 01/11/2026: 66 pruebas superadas, incluyendo PostgreSQL temporal. No acredita despliegue AWS. Se han revisado `README.md`, `architecture.md`, `acceptance.md` y los documentos `plan_codificador.md` y `enunciado_1_plataforma_social.md` de `C:\Users\Usuario\Desktop\Documentacion_Proyecto`.
 
 ## Contratos y límites
 
@@ -69,13 +69,15 @@ Se incorporan AWSSDK.S3 4.0.104.8, AWSSDK.SimpleEmailV2 4.0.106.7 y SkiaSharp/Sk
 dotnet ef database update --project src/GuardaCat.Server --startup-project src/GuardaCat.Server
 ```
 
-Compilación Release correcta. Quince pruebas aisladas de imágenes/Markdown superadas. La suite completa requiere `GUARDACAT_TEST_POSTGRES` y bases temporales:
+Compilación Release correcta. Suite completa: 66 superadas, 0 fallidas, 0 omitidas; incluye las quince pruebas aisladas de imágenes/Markdown. Requiere `GUARDACAT_TEST_POSTGRES` y bases temporales:
 
 ```powershell
 dotnet test tests/GuardaCat.IntegrationTests -c Release
 ```
 
-Pendientes: ejecutar la suite PostgreSQL (propiedad/CSRF, reemplazo concurrente, compensación, Markdown del mismo post, rollback de comentario/outbox, cancelación, reintentos y exclusión/recuperación de lease); comprobar el editor y avatares en navegador; probar S3/SES y Linux en el artefacto de despliegue. Los tests desactivan el worker automático, usan directorios temporales propios y fakes para simular fallos; nunca limpian la base habitual.
+Verificado en PostgreSQL: propiedad/CSRF, reemplazo concurrente, compensación, Markdown del mismo post, rollback de comentario/outbox, cancelación, reintentos y exclusión/recuperación de lease. Pendientes: comprobar el editor y avatares en navegador; probar S3/SES y Linux en el artefacto de despliegue. Los tests desactivan el worker automático, usan directorios temporales propios y fakes para simular fallos; nunca limpian la base habitual.
+
+La primera ejecución completa dio 63 aciertos y tres fallos del outbox. Se detectó que Windows adelantaba al reloj PostgreSQL aproximadamente medio segundo. Las tareas inmediatas ahora usan una fecha siempre vencida (`UnixEpoch`); los plazos de compensación, reintentos y leases se calculan y comparan con el reloj de PostgreSQL. Las pruebas también fuerzan vencimientos contra ese reloj. Tras corregirlo pasaron las tres pruebas del outbox y después las 66 de la suite. El cambio no modifica el esquema ni requiere una nueva migración.
 
 ## Revisión del plan y siguientes fases
 

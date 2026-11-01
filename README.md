@@ -4,7 +4,7 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-La base local (fase 1) y el MVP funcional (fase 2) están implementados. La fase 3 incorpora tags, filtro, likes limitados a posts, perfiles, imágenes con avatares y outbox de correo. La compilación y las pruebas aisladas de imágenes/Markdown están verificadas; la validación funcional de fase 3 en PostgreSQL y navegador sigue pendiente.
+La base local (fase 1) y el MVP funcional (fase 2) están implementados. La fase 3 incorpora tags, filtro, likes limitados a posts, perfiles, imágenes con avatares y outbox de correo. Compilación Release y suite completa verificadas el 01/11/2026: 66 pruebas superadas contra bases PostgreSQL temporales. Sigue pendiente la revisión de fase 3 en navegador.
 
 Revisión del 31/10/2026:
 
@@ -17,7 +17,7 @@ Revisión del 31/10/2026:
 - [x] Publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
 - [ ] Tags, filtro y likes solo en posts implementados; compilación, migración y pruebas pendientes de ejecutar.
 
-**Próximo paso:** aplicar todas las migraciones pendientes (incluidas `MediaAndOutbox` y `CommentNotificationOwnership`), ejecutar las pruebas de integración y revisar la fase 3 en navegador. No se han aplicado migraciones a la base habitual en esta entrega. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** revisar la fase 3 en navegador, con el host actualizado y las migraciones aplicadas a su base. La suite completa ya ha pasado; esta comprobación automatizada solo modificó bases temporales. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
 
 ## Decisión arquitectónica
 
