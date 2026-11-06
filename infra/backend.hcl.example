@@ -1,0 +1,5 @@
+bucket       = "guardacat-245324546838-eu-west-1-tfstate"
+key          = "guardacat/prod/terraform.tfstate"
+region       = "eu-west-1"
+encrypt      = true
+use_lockfile = true

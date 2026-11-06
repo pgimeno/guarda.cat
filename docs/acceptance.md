@@ -117,7 +117,7 @@ Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura públi
 - [x] Compilación Release sin errores ni advertencias. Quince pruebas aisladas de validación de imágenes y Markdown superadas.
 - [x] Suite completa PostgreSQL ejecutada el 01/11/2026: 66 superadas, 0 fallidas, 0 omitidas (19 s). Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente. Bases temporales creadas y eliminadas por los fixtures; no se modifica `guardacat`.
 - [x] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites, dos usuarios y 404 de URLs eliminadas confirmados por el usuario el 03/11/2026.
-- [ ] Integración con S3 y SES reales y configuración CloudFront por validar en AWS. El contenedor Linux y S3-compatible local pertenecen a la fase 4.
+- [ ] Integración con S3 y SES reales y publicación mediante ALB/ACM por validar en AWS. El contenedor Linux y S3-compatible local pertenecen a la fase 4.
 
 El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración y desviaciones justificadas. La fase 3 queda cerrada; no se acredita despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
 
@@ -139,6 +139,20 @@ Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciert
 
 - [x] Fase 3: opcionales y validación funcional completados.
 - [x] Fase 4: implementación y validación reproducible completadas.
-- [ ] Fases 5–7: AWS/Terraform, CI/CD, backups y restauración, alarmas, presupuesto y entrega.
+- [ ] Fase 5: IaC AWS preparada, pendiente de `plan/apply`, migración puntual y aceptación en la cuenta real.
+- [ ] Fases 6–7: CI/CD, simulacro de restauración, alarmas, presupuesto y entrega.
 
-Antes de AWS quedan además la validación de dominio/cuenta/SES, configuración de proxies y revisión de los límites por instancia. Persistir las claves de Data Protection en SQL no cifra por sí solo su XML; la protección para producción sigue el plan de seguridad.
+La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el presupuesto orientativo de 200 USD están confirmados. La configuración mantiene las claves de Data Protection compartidas en PostgreSQL sin añadir un cifrador KMS específico.
+
+### Fase 5 preparada, pendiente de ejecución
+
+- [x] Un único stack Terraform y backend S3 externo, privado, versionado, cifrado mediante SSE-S3 y con lockfile.
+- [x] VPC en dos AZ, subredes públicas para ALB/Fargate, subredes aisladas para RDS y ECR privado inmutable.
+- [x] ECS Fargate, tarea puntual `--migrate`, ALB público, ACM y salidas DNS para Hostinger descritos como código.
+- [x] RDS PostgreSQL Multi-AZ con backups automáticos, S3 privado/versionado, SES/DKIM, Secrets Manager y CloudWatch descritos como código.
+- [x] Una única credencial PostgreSQL y TLS obligatorio; Data Protection sigue compartido mediante PostgreSQL sin KMS específico.
+- [x] Cuenta, región, dominio, SES sandbox, destinatario de demostración y presupuesto confirmados.
+- [x] Terraform 1.15.8 inicializado sin backend y validado localmente; proveedores fijados en `.terraform.lock.hcl`.
+- [ ] Plan revisado y stack aplicado en AWS.
+- [ ] Imagen publicada en ECR, tarea `--migrate` finalizada con código 0 y servicio elevado a dos tareas saludables.
+- [ ] S3, SES, cookies compartidas, HTTPS, backups RDS y versionado S3 validados en AWS real.

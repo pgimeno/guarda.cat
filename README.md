@@ -4,7 +4,7 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-Las fases 1–4 están cerradas: base local, MVP, tags/filtro, likes limitados a posts, perfiles, imágenes con avatares, outbox de correo y empaquetado multiinstancia. La validación funcional en navegador quedó confirmada el 03/11/2026. Ese mismo día se ejecutaron las 66 pruebas contra bases PostgreSQL temporales y la aceptación reproducible de fase 4, ambas sin fallos.
+Las fases 1–4 están cerradas: base local, MVP, tags/filtro, likes limitados a posts, perfiles, imágenes con avatares, outbox de correo y empaquetado multiinstancia. La validación funcional en navegador quedó confirmada el 03/11/2026. Ese mismo día se ejecutaron las 66 pruebas contra bases PostgreSQL temporales y la aceptación reproducible de fase 4, ambas sin fallos. La fase 5 dispone de un único stack Terraform preparado para la cuenta de estudiante, pero todavía no se ha desplegado en AWS.
 
 Revisión del 03/11/2026:
 
@@ -19,7 +19,7 @@ Revisión del 03/11/2026:
 - [x] Imagen Docker única, modos `--web`/`--migrate`, dos réplicas locales, proxy HTTPS y almacenamiento S3-compatible verificados.
 - [x] `scripts/verify-packaging.ps1`: migración puntual, cookie compartida, contratos de caché y objeto leído desde ambas réplicas.
 
-**Próximo paso:** fase 5, infraestructura AWS/IaC: Terraform, dos AZ, ALB/CloudFront, RDS, S3, SES y backups. Detalles en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** revisar el plan y aplicar la fase 5 siguiendo [infra/README.md](infra/README.md). El stack prepara dos AZ, ALB/ACM, ECS, ECR, RDS, S3, SES, Secrets Manager y CloudWatch; el DNS seguirá administrado en Hostinger.
 
 ## Decisión arquitectónica
 

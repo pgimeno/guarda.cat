@@ -30,7 +30,7 @@ Sustituciones y borrados retiran metadatos y registran `DeleteMedia` en una sola
 
 S3 usa claves generadas `media/{guidN}`, cifrado SSE-S3 y no crea ACL públicas. Con versionado, DeleteObject deja un delete marker y versiones históricas recuperables: no equivale a purgar backups. Retenciones, conciliación tras restauración y costes se revisarán al desplegar AWS.
 
-Las URLs públicas pasan por el host, que consulta SQL y lee S3/local. Una petición nueva después del borrado obtiene 404 aunque falle la eliminación física. No se pueden retirar bytes ya descargados ni una respuesta que ya esté en curso. Al desplegar CloudFront, `/media/*` debe ir al ALB con caché deshabilitada y sin acceso directo de OAC al bucket. Esto sustituye la caché S3 de 24 horas del plan anterior para cumplir el criterio actual de retirada; aumenta tráfico y trabajo del host. La caché CDN de imágenes requiere una decisión posterior compatible con esa aceptación.
+Las URLs públicas pasan por el host, que consulta SQL y lee S3/local. Una petición nueva después del borrado obtiene 404 aunque falle la eliminación física. No se pueden retirar bytes ya descargados ni una respuesta que ya esté en curso. En AWS, `/media/*` continúa pasando por el ALB y la aplicación, sin exponer directamente el bucket ni añadir caché CDN en esta fase. Esto cumple el criterio actual de retirada a cambio de más tráfico y trabajo del host.
 
 ## Correo fiable
 
@@ -61,7 +61,7 @@ Outbox__Enabled=true
 
 Los SDK usan la cadena de credenciales de AWS (task role en ECS); no se añaden claves al repositorio. El arranque valida proveedor, bucket, remitente y URL HTTPS. Local/Capture solo están permitidos en Development o en el entorno local de aceptación `Packaging`. `Outbox__Enabled=false` pausa el worker, pero las mutaciones siguen registrando trabajos: usarlo durante revisión de restauraciones y reactivarlo después. Las migraciones se ejecutan aparte con `--migrate`.
 
-Se incorporan AWSSDK.S3 4.0.104.8, AWSSDK.SimpleEmailV2 4.0.106.7 y SkiaSharp/SkiaSharp.NativeAssets.Linux.NoDependencies 4.154.0. La biblioteca de imágenes se ejecuta exclusivamente en el servidor. Referencias de API: [S3 PutObject](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/S3/TPutObjectRequest.html), [SES SendEmail](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SimpleEmailV2/TSendEmailRequest.html), [decodificación SkiaSharp](https://learn.microsoft.com/en-us/dotnet/api/skiasharp.skcodec.getpixels).
+Se incorporan AWSSDK.S3 4.0.104.8, AWSSDK.SimpleEmailV2 4.0.106.7 y SkiaSharp/SkiaSharp.NativeAssets.Linux.NoDependencies 4.154.0. La biblioteca de imágenes se ejecuta exclusivamente en el servidor. Referencias de API: [S3 PutObject](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/S3/TPutObjectRequest.html), [SES SendEmail](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SimpleEmailV2/TSendEmailRequest.html) y [decodificación SkiaSharp](https://learn.microsoft.com/en-us/dotnet/api/skiasharp.skcodec.getpixels).
 
 ## Migración y validación
 
