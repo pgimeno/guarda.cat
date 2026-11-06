@@ -1,6 +1,6 @@
 # Medios y outbox — entrega del 01/11/2026
 
-Implementación de la fase 3. La suite completa se verificó el 01/11/2026: 66 pruebas superadas, incluyendo PostgreSQL temporal. No acredita despliegue AWS. Se han revisado `README.md`, `architecture.md`, `acceptance.md` y los documentos `plan_codificador.md` y `enunciado_1_plataforma_social.md` de `C:\Users\Usuario\Desktop\Documentacion_Proyecto`.
+Implementación de la fase 3, cerrada tras la validación funcional confirmada el 03/11/2026. La suite completa se volvió a verificar el 03/11/2026: 66 pruebas superadas, incluyendo PostgreSQL temporal. No acredita despliegue AWS. Se han revisado `README.md`, `architecture.md`, `acceptance.md` y los documentos `plan_codificador.md` y `enunciado_1_plataforma_social.md` de `C:\Users\Usuario\Desktop\Documentacion_Proyecto`.
 
 ## Contratos y límites
 
@@ -44,6 +44,8 @@ Antes de enviar se comprueba que el comentario siga existiendo. Borrar el post c
 
 Development está preparado en `appsettings.Development.json`: `Media:Provider=Local`, `Email:Provider=Capture`, archivos bajo `App_Data`, y URL pública `https://localhost:7125`. La captura crea un JSON por intento de entrega local fuera del contenido público. No envía correo real.
 
+La aceptación local de fase 4 usa el entorno explícito `Packaging`, sobrescribe el proveedor de medios con `Media:Provider=S3` y `Media:ServiceUrl=http://minio:9000`, y mantiene Capture sin habilitar depuración. El SDK usa path-style únicamente cuando existe `ServiceUrl`; en AWS se omite y conserva el endpoint regional normal. El Compose desactiva SSE-S3 porque MinIO requiere un KMS externo para aceptarlo; la configuración AWS conserva el valor predeterminado cifrado. MinIO y Capture no forman parte del despliegue productivo.
+
 En Production, configurar mediante variables o secretos:
 
 ```text
@@ -57,7 +59,7 @@ Email__PublicBaseUrl=https://<dominio público>
 Outbox__Enabled=true
 ```
 
-Los SDK usan la cadena de credenciales de AWS (task role en ECS); no se añaden claves al repositorio. El arranque valida proveedor, bucket, remitente y URL HTTPS. Local/Capture solo están permitidos en Development. `Outbox__Enabled=false` pausa el worker, pero las mutaciones siguen registrando trabajos: usarlo durante revisión de restauraciones y reactivarlo después. Este interruptor no es un modo de migración; ese modo pertenece a fase 4.
+Los SDK usan la cadena de credenciales de AWS (task role en ECS); no se añaden claves al repositorio. El arranque valida proveedor, bucket, remitente y URL HTTPS. Local/Capture solo están permitidos en Development o en el entorno local de aceptación `Packaging`. `Outbox__Enabled=false` pausa el worker, pero las mutaciones siguen registrando trabajos: usarlo durante revisión de restauraciones y reactivarlo después. Las migraciones se ejecutan aparte con `--migrate`.
 
 Se incorporan AWSSDK.S3 4.0.104.8, AWSSDK.SimpleEmailV2 4.0.106.7 y SkiaSharp/SkiaSharp.NativeAssets.Linux.NoDependencies 4.154.0. La biblioteca de imágenes se ejecuta exclusivamente en el servidor. Referencias de API: [S3 PutObject](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/S3/TPutObjectRequest.html), [SES SendEmail](https://docs.aws.amazon.com/sdkfornet/v4/apidocs/items/SimpleEmailV2/TSendEmailRequest.html), [decodificación SkiaSharp](https://learn.microsoft.com/en-us/dotnet/api/skiasharp.skcodec.getpixels).
 
@@ -75,7 +77,7 @@ Compilación Release correcta. Suite completa: 66 superadas, 0 fallidas, 0 omiti
 dotnet test tests/GuardaCat.IntegrationTests -c Release
 ```
 
-Verificado en PostgreSQL: propiedad/CSRF, reemplazo concurrente, compensación, Markdown del mismo post, rollback de comentario/outbox, cancelación, reintentos y exclusión/recuperación de lease. Pendientes: comprobar el editor y avatares en navegador; probar S3/SES y Linux en el artefacto de despliegue. Los tests desactivan el worker automático, usan directorios temporales propios y fakes para simular fallos; nunca limpian la base habitual.
+Verificado en PostgreSQL: propiedad/CSRF, reemplazo concurrente, compensación, Markdown del mismo post, rollback de comentario/outbox, cancelación, reintentos y exclusión/recuperación de lease. El editor y los avatares quedaron confirmados en navegador el 03/11/2026. La aceptación Linux/S3-compatible de fase 4 pasó el 03/11/2026 con dos réplicas; siguen pendientes S3/SES reales. Los tests desactivan el worker automático, usan directorios temporales propios y fakes para simular fallos; nunca limpian la base habitual.
 
 La primera ejecución completa dio 63 aciertos y tres fallos del outbox. Se detectó que Windows adelantaba al reloj PostgreSQL aproximadamente medio segundo. Las tareas inmediatas ahora usan una fecha siempre vencida (`UnixEpoch`); los plazos de compensación, reintentos y leases se calculan y comparan con el reloj de PostgreSQL. Las pruebas también fuerzan vencimientos contra ese reloj. Tras corregirlo pasaron las tres pruebas del outbox y después las 66 de la suite. El cambio no modifica el esquema ni requiere una nueva migración.
 
@@ -83,4 +85,4 @@ La primera ejecución completa dio 63 aciertos y tres fallos del outbox. Se dete
 
 Se mantienen el producto generalista en catalán, el MVP público, las cinco extensiones acordadas y el orden medios → notificaciones. No se añaden seguidores, administración, likes en comentarios, DynamoDB, SQS ni Lambda. Cambios concretos frente al plan inicial: entidades de medios unificadas, cola técnica compartida, DELETE por ID de medio propio, límite adicional de píxeles, reintentos sin descarte, eliminación inmediata de trabajos terminados y entrega de medios mediante host sin caché.
 
-La fase 3 necesita validación funcional antes de considerarse terminada. Continúan pendientes fase 4 (contenedor y modos web/migración), fase 5 (Terraform/AWS, dos AZ, CDN, backups y SES), fase 6 (pipeline) y fase 7 (restauración, alarmas, presupuesto, costes y documentación operativa). No se han configurado recursos AWS ni AWS Agent Toolkit.
+Las fases 3 y 4 están terminadas. El contenedor, los modos web/migración y la topología local de dos réplicas superaron su script de aceptación. Continúan pendientes fase 5 (Terraform/AWS, dos AZ, CDN, backups y SES), fase 6 (pipeline) y fase 7 (restauración, alarmas, presupuesto, costes y documentación operativa). No se han configurado recursos AWS ni AWS Agent Toolkit.

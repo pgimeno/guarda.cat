@@ -968,7 +968,7 @@ h1[tabindex="-1"]:focus,
 .author-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
 .author-identity { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; }
 .author-identity > span:last-child { overflow-wrap: anywhere; }
-.author-avatar { display: inline-flex; width: 22px; height: 22px; flex: 0 0 22px; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--gc-line); border-radius: 50%; background: var(--gc-surface-soft); color: var(--gc-muted); font-size: 0.5625rem; font-weight: 600; line-height: 1; letter-spacing: 0.02em; }
+.author-avatar { display: inline-flex; width: 36px; height: 36px; flex: 0 0 36px; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--gc-line); border-radius: 50%; background: var(--gc-surface-soft); color: var(--gc-muted); font-size: 0.5625rem; font-weight: 600; line-height: 1; letter-spacing: 0.02em; }
 .author-avatar img { display: block; width: 100%; height: 100%; min-width: 0; object-fit: cover; border-radius: inherit; }
 .profile-bio { margin: 0 0 24px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--gc-muted); }
 .post-excerpt { margin-bottom: 12px; color: var(--gc-muted); overflow-wrap: anywhere; white-space: pre-line; }

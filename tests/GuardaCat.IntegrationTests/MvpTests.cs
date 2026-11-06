@@ -26,9 +26,19 @@ public sealed partial class MvpTests(PostgresFixture database) : IClassFixture<P
         using var publicRead = await client.GetAsync("/api/public/posts");
         Assert.Equal(HttpStatusCode.OK, publicRead.StatusCode);
         Assert.False(publicRead.Headers.Contains("Set-Cookie"));
+        Assert.True(publicRead.Headers.CacheControl?.Public);
+        Assert.Equal(TimeSpan.Zero, publicRead.Headers.CacheControl?.MaxAge);
+        Assert.Equal(TimeSpan.FromSeconds(30), publicRead.Headers.CacheControl?.SharedMaxAge);
         using var privateRead = await client.GetAsync("/api/me");
         Assert.Equal(HttpStatusCode.OK, privateRead.StatusCode);
         Assert.True(privateRead.Headers.Contains("Set-Cookie"));
+        Assert.True(privateRead.Headers.CacheControl?.Private,
+            $"Cache-Control recibido: {privateRead.Headers.CacheControl}");
+        Assert.True(privateRead.Headers.CacheControl?.NoStore);
+
+        using var invalidPublicRead = await client.GetAsync("/api/public/posts?page=0");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidPublicRead.StatusCode);
+        Assert.True(invalidPublicRead.Headers.CacheControl?.NoStore);
     }
 
     [Fact]

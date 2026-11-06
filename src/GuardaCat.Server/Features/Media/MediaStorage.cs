@@ -11,6 +11,8 @@ public sealed class MediaOptions
     public string LocalPath { get; set; } = "App_Data/media";
     public string Bucket { get; set; } = string.Empty;
     public string Region { get; set; } = "eu-west-1";
+    public string? ServiceUrl { get; set; }
+    public bool UseServerSideEncryption { get; set; } = true;
 }
 
 public interface IMediaStorage
@@ -59,11 +61,14 @@ public sealed class S3MediaStorage(IAmazonS3 s3, IOptions<MediaOptions> options)
     public async Task PutAsync(string key, byte[] bytes, string contentType, CancellationToken ct)
     {
         using var stream = new MemoryStream(bytes, writable: false);
-        await s3.PutObjectAsync(new PutObjectRequest
+        var request = new PutObjectRequest
         {
             BucketName = options.Value.Bucket, Key = Key(key), InputStream = stream,
-            ContentType = contentType, ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
-        }, ct);
+            ContentType = contentType
+        };
+        if (options.Value.UseServerSideEncryption)
+            request.ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256;
+        await s3.PutObjectAsync(request, ct);
     }
 
     public async Task<byte[]?> ReadAsync(string key, CancellationToken ct)

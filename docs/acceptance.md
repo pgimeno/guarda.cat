@@ -1,6 +1,6 @@
 # Estado y evidencias de aceptación
 
-Revisión: 31/10/2026. Corresponde al árbol de trabajo local, con cambios todavía sin commit. No acredita despliegue ni recursos en AWS.
+Revisión: 03/11/2026. Corresponde al árbol de trabajo local, con cambios todavía sin commit. No acredita despliegue ni recursos en AWS. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
 
 ## Alcance acordado
 
@@ -84,14 +84,14 @@ Comando reproducible desde la raíz, con el artefacto sirviéndose en HTTPS:
 
 La interfaz se comprobó sin errores de consola en la revisión final. La paginación usa desplazamiento: el orden es determinista, pero publicaciones o eliminaciones concurrentes pueden desplazar páginas. No se ha implantado todavía caché CDN.
 
-**Siguiente paso:** aplicar migraciones pendientes y validar tags, likes, perfiles, imágenes y outbox. La entrega de medios se describe en la revisión del 01/11/2026 siguiente.
+La entrega de medios se describe en la revisión del 01/11/2026 siguiente. Sus migraciones, opcionales y recorrido funcional quedaron confirmados antes de iniciar el empaquetado.
 
-## Fase 3: primera entrega pendiente de validación
+## Fase 3: opcionales completados
 
-- [ ] Tags normalizados (máximo 5 por post), edición y visualización pública.
-- [ ] Filtro público por tag con paginación y enlaces desde la portada.
-- [ ] Like único e idempotente por usuario, únicamente en posts; sin likes en comentarios ni downvotes.
-- [ ] Migración `TagsAndPostLikes`, contrato OpenAPI y pruebas de integración preparados, aún no ejecutados.
+- [x] Tags normalizados (máximo 5 por post), edición y visualización pública.
+- [x] Filtro público por tag con paginación y enlaces desde la portada.
+- [x] Like único e idempotente por usuario, únicamente en posts; sin likes en comentarios ni downvotes.
+- [x] Migración `TagsAndPostLikes`, contrato OpenAPI y pruebas incluidos en la suite de 66 pruebas superada el 01/11/2026.
 
 ## Fase 3: perfiles implementados, revisión del 01/11/2026
 
@@ -100,9 +100,9 @@ La interfaz se comprobó sin errores de consola en la revisión final. La pagina
 - [x] Páginas `/users/{id}` y `/my-profile`, publicaciones paginadas por autor y enlaces desde cabecera, posts y comentarios. Tras guardar se refleja la respuesta confirmada y se refresca el nombre de la sesión.
 - [x] Reutilización de las columnas existentes; no se añade migración. Bio en texto plano, renderizada con el escape normal de Razor.
 - [x] Compilación Release de la solución, incluidos los tests: sin advertencias ni errores.
-- [ ] Ejecutar las seis pruebas de perfiles añadidas en `MvpTests.Profiles.cs` y la suite de regresión. `GUARDACAT_TEST_POSTGRES` no está configurada en esta sesión; no se han ejecutado pruebas de integración ni modificado bases de datos.
-- [ ] En navegador: abrir el perfil desde un autor/comentario y desde la cabecera; editar nombre/bio, recargar y comprobar persistencia y actualización del nombre; probar perfil sin posts, ID inexistente y paginación manteniendo el autor.
-- [ ] En navegador: comprobar que HTML en nombre/bio se muestra como texto, el diseño en móvil y que otro usuario no dispone del enlace de edición del perfil ajeno.
+- [x] Las seis pruebas de perfiles y la suite de regresión forman parte de las 66 pruebas superadas el 01/11/2026.
+- [x] Navegador: navegación y edición del perfil, persistencia, nombre actualizado, casos sin posts/ID inexistente y paginación confirmados por el usuario el 03/11/2026.
+- [x] Navegador: escape de HTML, diseño y ausencia de edición de perfil ajeno confirmados por el usuario el 03/11/2026.
 
 Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura pública, identidad de sesión frente a IDs manipulados, preservación de campos de Identity, autenticación, CSRF, límites, borrado de bio, propagación del nombre a posts/comentarios y OpenAPI. El filtro y la paginación por autor también tienen cobertura previa en `MvpTests.cs`. Si dos sesiones editan el mismo perfil, prevalece la última escritura.
 
@@ -116,17 +116,29 @@ Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura públi
 - [x] Migraciones `MediaAndOutbox` y `CommentNotificationOwnership` generadas, sin aplicarlas a bases de datos.
 - [x] Compilación Release sin errores ni advertencias. Quince pruebas aisladas de validación de imágenes y Markdown superadas.
 - [x] Suite completa PostgreSQL ejecutada el 01/11/2026: 66 superadas, 0 fallidas, 0 omitidas (19 s). Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente. Bases temporales creadas y eliminadas por los fixtures; no se modifica `guardacat`.
-- [ ] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites y dos usuarios. Comprobar que las URLs eliminadas devuelven 404.
-- [ ] Integración S3/SES, contenedor Linux y configuración CloudFront por validar en fases posteriores.
+- [x] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites, dos usuarios y 404 de URLs eliminadas confirmados por el usuario el 03/11/2026.
+- [ ] Integración con S3 y SES reales y configuración CloudFront por validar en AWS. El contenedor Linux y S3-compatible local pertenecen a la fase 4.
 
-El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración, desviaciones justificadas y criterios pendientes. No se acredita la fase 3 completa ni despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
+El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración y desviaciones justificadas. La fase 3 queda cerrada; no se acredita despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
 
 Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciertos, tres fallos): las fechas del host se comparaban con `now()` de PostgreSQL y un desfase de aproximadamente medio segundo impedía reclamar tareas recién creadas. Se unifican los plazos de cola en el reloj PostgreSQL y las tareas inmediatas se marcan ya vencidas. Verificación: tres pruebas del outbox superadas y, después, suite completa de 66 superadas. No requiere migración adicional.
 
+## Fase 4: empaquetado cerrado
+
+- [x] `Dockerfile` multi-stage con SDK 10.0.400, runtime ASP.NET Core 10.0.14, publicación conjunta Client/Server, puerto 8080 y usuario no root.
+- [x] Una misma imagen con modo web predeterminado y modo puntual `--migrate`; la web no ejecuta migraciones al arrancar.
+- [x] Compose con PostgreSQL, MinIO local, migración única, dos réplicas sin volúmenes montados y Caddy HTTPS round-robin.
+- [x] Claves de Data Protection compartidas en PostgreSQL y objetos compartidos mediante API S3-compatible, sin depender del disco efímero de las webs.
+- [x] Contratos HTTP: JSON público correcto `public, max-age=0, s-maxage=30`; errores públicos, API privada/mutaciones y `/media/*` con `no-store`; lecturas públicas sin `Set-Cookie`.
+- [x] `scripts/verify-packaging.ps1` ejecutado correctamente el 03/11/2026: migración finalizada con código 0, cookie aceptada por `web1` y `web2`, contratos de caché correctos y el mismo objeto S3-compatible leído desde ambas réplicas.
+- [x] `web1`, `web2` y `migrate` usaron el mismo identificador de imagen, usuario 1654 y cero montajes. La compilación/publish Linux Release se realizó dentro del Dockerfile.
+- [x] Durante la validación se sustituyó la imagen retirada `minio/mc` por un helper Alpine reproducible, se preparó el volumen MinIO antes de bajar a usuario no-root y se desactivó SSE-S3 solo en el sustituto local; AWS conserva cifrado por defecto.
+- [x] Suite Release repetida el 03/11/2026: 66 superadas, 0 fallidas, 0 omitidas. Detectó y permitió corregir que la renovación de cookie podía sobrescribir `private`; la política de caché se registra antes de autenticación y queda como cabecera final.
+
 ## Fases posteriores
 
-- [ ] Fase 3: validar tags/filtro, likes en posts, perfiles, imágenes y outbox.
-- [ ] Fase 4: Dockerfile único y modos web/migración. La prueba de claves compartidas ya está cubierta, pero no completa esta fase.
+- [x] Fase 3: opcionales y validación funcional completados.
+- [x] Fase 4: implementación y validación reproducible completadas.
 - [ ] Fases 5–7: AWS/Terraform, CI/CD, backups y restauración, alarmas, presupuesto y entrega.
 
 Antes de AWS quedan además la validación de dominio/cuenta/SES, configuración de proxies y revisión de los límites por instancia. Persistir las claves de Data Protection en SQL no cifra por sí solo su XML; la protección para producción sigue el plan de seguridad.

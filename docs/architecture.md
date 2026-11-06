@@ -8,7 +8,7 @@ Antes de generar la solución o provisionar recursos se debe revisar y aprobar e
 
 La arquitectura es una propuesta pendiente de validación en la cuenta AWS real. En especial, deben confirmarse el dominio y la zona DNS, las restricciones de la cuenta del curso, las regiones y clases disponibles, el acceso de producción de SES y el presupuesto.
 
-Revisión del 01/11/2026: [medios y outbox](media-and-outbox.md) implementa la fase 3. El criterio nuevo de retirar el acceso al eliminar una imagen sustituye la propuesta de caché larga S3/OAC: `/media/*` atraviesa el host con `no-store` y S3 permanece privado. El diagrama Mermaid siguiente refleja este ajuste; el archivo Excalidraw histórico aún debe sincronizarse antes de la entrega de infraestructura.
+Revisión del 03/11/2026: las fases 3 y 4 están cerradas. La imagen multi-stage no-root, los modos web/migración, las dos réplicas, las cookies compartidas y los contratos de caché superaron la aceptación local. El criterio de retirar el acceso al eliminar una imagen mantiene `/media/*` a través del host con `no-store` y S3 privado. Los diagramas Mermaid y Excalidraw reflejan ese flujo mediante ALB/ECS, sin acceso directo CloudFront–S3 para medios.
 
 ### Diagrama completo
 
@@ -112,6 +112,12 @@ El diagrama muestra flujos lógicos. `albA` y `albB` representan un único Appli
 - Adaptadores: S3 para archivos, SES para correo y almacenamiento local/captura de correo únicamente durante desarrollo.
 - Procesos en segundo plano: cada réplica puede ejecutar los workers. Las filas se reclaman con lease y bloqueo en PostgreSQL para evitar trabajo simultáneo; el envío conserva semántica de al menos una vez.
 - Artefacto: una sola imagen Docker multi-stage, ejecutada sin usuario root y escuchando en el puerto 8080. El modo web y el modo de migración usan el mismo artefacto.
+
+### Topología local de empaquetado
+
+`compose.yaml` reutiliza esa imagen en el entorno `Packaging`, en una tarea `migrate` de una sola ejecución y en dos procesos web. Caddy termina HTTPS local y reparte peticiones round-robin; PostgreSQL comparte datos y claves de Data Protection; MinIO aporta un contrato S3 local para que las dos webs lean los mismos objetos. Las webs no montan volúmenes. MinIO, Capture, Caddy y la cabecera diagnóstica de instancia existen para aceptación local y no sustituyen S3, SES, CloudFront ni ALB en AWS.
+
+La imagen inicia `--web` de forma predeterminada. `--migrate` aplica EF Core, registra el resultado por stdout y termina con el código del proceso; nunca levanta endpoints ni workers. Las respuestas correctas bajo `/api/public/*` declaran `public, max-age=0, s-maxage=30`; los errores públicos y el resto de `/api/*` declaran `no-store`. `/media/*` conserva revocación inmediata y `no-store`.
 
 ### Flujos principales
 

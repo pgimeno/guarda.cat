@@ -4,9 +4,9 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-La base local (fase 1) y el MVP funcional (fase 2) están implementados. La fase 3 incorpora tags, filtro, likes limitados a posts, perfiles, imágenes con avatares y outbox de correo. Compilación Release y suite completa verificadas el 01/11/2026: 66 pruebas superadas contra bases PostgreSQL temporales. Sigue pendiente la revisión de fase 3 en navegador.
+Las fases 1–4 están cerradas: base local, MVP, tags/filtro, likes limitados a posts, perfiles, imágenes con avatares, outbox de correo y empaquetado multiinstancia. La validación funcional en navegador quedó confirmada el 03/11/2026. Ese mismo día se ejecutaron las 66 pruebas contra bases PostgreSQL temporales y la aceptación reproducible de fase 4, ambas sin fallos.
 
-Revisión del 31/10/2026:
+Revisión del 03/11/2026:
 
 - [x] PostgreSQL saludable en Docker Engine, publicado en `127.0.0.1:5433`.
 - [x] Migración desde una base vacía y cliente/API servidos por el mismo host local.
@@ -15,9 +15,11 @@ Revisión del 31/10/2026:
 - [x] Publicación Release generada; CSS y JavaScript de MudBlazor incluidos y accesibles por HTTP.
 - [x] Arranque del cliente desde el artefacto Release: `index.html` referencia `_framework/blazor.webassembly.js` y el host lo sirve con estado 200.
 - [x] Publicaciones propias, lectura pública paginada, Markdown seguro y comentarios.
-- [ ] Tags, filtro y likes solo en posts implementados; compilación, migración y pruebas pendientes de ejecutar.
+- [x] Tags, filtro, likes solo en posts, perfiles, imágenes y outbox comprobados por API y navegador.
+- [x] Imagen Docker única, modos `--web`/`--migrate`, dos réplicas locales, proxy HTTPS y almacenamiento S3-compatible verificados.
+- [x] `scripts/verify-packaging.ps1`: migración puntual, cookie compartida, contratos de caché y objeto leído desde ambas réplicas.
 
-**Próximo paso:** revisar la fase 3 en navegador, con el host actualizado y las migraciones aplicadas a su base. La suite completa ya ha pasado; esta comprobación automatizada solo modificó bases temporales. Detalles y evidencia en [docs/acceptance.md](docs/acceptance.md).
+**Próximo paso:** fase 5, infraestructura AWS/IaC: Terraform, dos AZ, ALB/CloudFront, RDS, S3, SES y backups. Detalles en [docs/acceptance.md](docs/acceptance.md).
 
 ## Decisión arquitectónica
 
@@ -30,7 +32,7 @@ Un único host ASP.NET Core sirve Blazor WebAssembly y la API; PostgreSQL guarda
 
 ## Configuración inicial
 
-1. Copia `.env.example` como `.env` y cambia la contraseña local.
+1. Copia `.env.example` como `.env` y cambia los tres valores locales.
 2. Inicia PostgreSQL con `docker compose up -d postgres`.
 3. Guarda la misma contraseña fuera del repositorio:
 
@@ -49,6 +51,33 @@ Un único host ASP.NET Core sirve Blazor WebAssembly y la API; PostgreSQL guarda
 El cliente, los archivos estáticos y la API se sirven desde `https://localhost:7125`. Usa HTTPS para las cookies de sesión y CSRF; si falta la confianza del certificado local, ejecuta `dotnet dev-certs https --trust`.
 
 Docker publica PostgreSQL en `127.0.0.1:5433`; el puerto dentro del contenedor es `5432`. Verificado el 31/10/2026 con `docker compose ps`: contenedor `guardacat-postgres-1` en ejecución y saludable.
+
+## Empaquetado local — fase 4
+
+`Dockerfile` publica Client y Server en una única imagen Linux multi-stage, con runtime ASP.NET Core y usuario no root. El mismo artefacto admite `--web` —modo predeterminado— y `--migrate`; la web nunca aplica migraciones al arrancar.
+
+El Compose completo usa el entorno `Packaging` y contiene PostgreSQL, MinIO como sustituto local compatible con S3, una tarea puntual de migración, `web1`, `web2` y Caddy como proxy HTTPS round-robin. Las dos webs no montan volúmenes: claves de Data Protection y datos se comparten mediante PostgreSQL, y los objetos mediante MinIO. MinIO, Capture y Caddy son dependencias de aceptación local, no componentes previstos para AWS; OpenAPI y depuración WASM permanecen desactivados.
+
+1. Copia `.env.example` a `.env` y cambia los tres valores. La clave secreta de MinIO debe tener al menos 8 caracteres.
+2. Ejecuta desde PowerShell 7:
+
+   ```powershell
+   ./scripts/verify-packaging.ps1
+   ```
+
+El script construye la imagen, aplica migraciones una sola vez, inicia dos réplicas y comprueba por `https://localhost:8443`: cookie compartida, recorrido de ambas instancias, caché pública `public, max-age=0, s-maxage=30`, `no-store` privado/errores/medios y lectura de una imagen común. Caddy usa una CA interna solo para esta comprobación; el script omite su validación. Para inspección manual, el navegador mostrará una advertencia hasta confiar explícitamente en esa CA local.
+
+Comandos individuales:
+
+```powershell
+docker compose build
+docker compose run --rm migrate
+docker compose up -d web1 web2 proxy
+docker compose ps
+docker compose down
+```
+
+No uses `docker compose down -v` salvo que quieras borrar de forma irreversible las bases y objetos locales de los volúmenes del proyecto.
 
 ## Autenticación (primera entrega de la fase 2)
 
@@ -80,7 +109,7 @@ Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, 
 - Páginas de 20 elementos por defecto, máximo 50. Posts ordenados por fecha e ID descendentes; comentarios por fecha e ID ascendentes. El desempate es determinista, aunque la inserción o eliminación entre peticiones puede desplazar las páginas.
 - Cada post admite hasta 5 tags normalizados en minúsculas, de 2–30 caracteres. La portada permite filtrar por un tag mediante `?tag=` y conserva el filtro al paginar.
 - Cada usuario autenticado puede dar o retirar un único like por post. Las operaciones son idempotentes; no existen likes en comentarios ni downvotes. El límite es 60 mutaciones de like por minuto/IP.
-- Consultas públicas sin emails, permisos privados ni cookies de respuesta. Escrituras autenticadas con CSRF. Comentarios: 10/minuto/IP; vista previa: 30/minuto/IP.
+- Consultas públicas sin emails, permisos privados ni cookies de respuesta, con `Cache-Control: public, max-age=0, s-maxage=30` solo en respuestas correctas. Errores, rutas privadas, mutaciones y medios usan `no-store`. Escrituras autenticadas con CSRF. Comentarios: 10/minuto/IP; vista previa: 30/minuto/IP.
 - OpenAPI disponible solo en Development: `/openapi/v1.json`, con DTO, límites y códigos de respuesta. Rutas públicas `/api/public/posts` y `/api/public/posts/{id}/comments`; rutas privadas `/api/me/posts`, `/api/posts`, `/api/posts/{id}/like` y `/api/posts/preview`.
 
 ## Perfiles de usuario
