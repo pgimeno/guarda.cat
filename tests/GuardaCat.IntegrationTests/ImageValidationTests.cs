@@ -19,7 +19,37 @@ public sealed class ImageValidationTests
         Assert.NotNull(result);
         Assert.Equal(8, result.Width);
         Assert.Equal(6, result.Height);
+        Assert.Contains(result.ContentType, new[] { mime, "image/webp" });
         Assert.DoesNotContain("untrusted-payload", Encoding.UTF8.GetString(result.Bytes));
+    }
+
+    [Fact]
+    public async Task Png_is_stored_as_lossless_webp_when_it_is_smaller()
+    {
+        var input = CreateImage(width: 512, height: 512);
+        using var stream = new MemoryStream(input);
+
+        var result = await ImageValidator.ReadAsync(stream, "image/png", default);
+
+        Assert.NotNull(result);
+        Assert.Equal("image/webp", result.ContentType);
+        Assert.True(result.Bytes.Length < input.Length);
+        using var data = SKData.CreateCopy(result.Bytes);
+        using var codec = SKCodec.Create(data);
+        Assert.NotNull(codec);
+        Assert.Equal(SKEncodedImageFormat.Webp, codec.EncodedFormat);
+    }
+
+    [Fact]
+    public async Task Large_images_are_downscaled_before_storage()
+    {
+        using var stream = new MemoryStream(CreateImage(width: 3000, height: 1500));
+
+        var result = await ImageValidator.ReadAsync(stream, "image/png", default);
+
+        Assert.NotNull(result);
+        Assert.Equal(2560, result.Width);
+        Assert.Equal(1280, result.Height);
     }
 
     [Theory]

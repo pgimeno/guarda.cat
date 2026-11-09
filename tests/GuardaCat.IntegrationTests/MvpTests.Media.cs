@@ -33,7 +33,7 @@ public sealed partial class MvpTests
         Assert.Equal(HttpStatusCode.OK, publicRead.StatusCode);
         Assert.True(publicRead.Headers.CacheControl?.NoStore);
         Assert.False(publicRead.Headers.Contains("Set-Cookie"));
-        Assert.Equal("image/png", publicRead.Content.Headers.ContentType?.MediaType);
+        Assert.Contains(publicRead.Content.Headers.ContentType?.MediaType, new[] { "image/png", "image/webp" });
         using var denied = await Mutate(other, HttpMethod.Delete, $"/api/me/media/{old.Id}");
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
 

@@ -27,6 +27,9 @@ public sealed class PostsClient(HttpClient http)
     public Task<ApiResult<PostResponse>> GetAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"api/public/posts/{id}", null, Json.PostResponse, ct);
 
+    public Task<ApiResult<List<TopicResponse>>> TopicsAsync(CancellationToken ct) =>
+        SendAsync(HttpMethod.Get, "api/public/topics", null, Json.ListTopicResponse, ct);
+
     public Task<ApiResult<EditPostResponse>> EditAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"api/me/posts/{id}/edit", null, Json.EditPostResponse, ct);
 

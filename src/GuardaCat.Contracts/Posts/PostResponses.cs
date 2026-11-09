@@ -18,6 +18,8 @@ public sealed record PostStateResponse(bool CanEdit, bool IsLiked);
 
 public sealed record LikeResponse(int LikeCount, bool IsLiked);
 
+public sealed record TopicResponse(string Name, int PostCount);
+
 public sealed record PreviewResponse(string BodyHtml);
 
 public sealed record CommentResponse(Guid Id, Guid AuthorId, string AuthorName, string Body, DateTime CreatedAtUtc,

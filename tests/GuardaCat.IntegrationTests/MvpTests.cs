@@ -54,6 +54,7 @@ public sealed partial class MvpTests(PostgresFixture database) : IClassFixture<P
         Assert.True(paths.GetProperty("/api/posts/{id}/comments").GetProperty("post").GetProperty("responses").TryGetProperty("429", out _));
         Assert.True(paths.GetProperty("/api/posts/{id}/like").TryGetProperty("put", out _));
         Assert.True(paths.GetProperty("/api/posts/{id}/like").TryGetProperty("delete", out _));
+        Assert.True(paths.GetProperty("/api/public/topics").GetProperty("get").GetProperty("responses").TryGetProperty("200", out _));
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
         Assert.Equal(150, schemas.GetProperty("SavePostRequest").GetProperty("properties").GetProperty("title").GetProperty("maxLength").GetInt32());
         Assert.False(schemas.GetProperty("PostResponse").GetProperty("properties").TryGetProperty("email", out _));
@@ -241,6 +242,45 @@ public sealed partial class MvpTests(PostgresFixture database) : IClassFixture<P
         using var commentLike = await Mutate(reader, HttpMethod.Put,
             $"/api/posts/{post.Id}/comments/{Guid.NewGuid()}/like");
         Assert.Equal(HttpStatusCode.MethodNotAllowed, commentLike.StatusCode);
+    }
+
+    [Fact]
+    public async Task Topics_rank_by_post_count_and_return_only_the_top_ten()
+    {
+        await using var host = database.CreateHost();
+        using var firstAuthor = Client(host);
+        using var secondAuthor = Client(host);
+        using var anonymous = Client(host);
+        await SignInAsync(firstAuthor);
+        await SignInAsync(secondAuthor);
+
+        using var firstPost = await Mutate(firstAuthor, HttpMethod.Post, "/api/posts", new SavePostRequest
+        {
+            Title = "Primera publicació", BodyMarkdown = "Contingut", Tags = ["cultura"]
+        });
+        using var secondPost = await Mutate(secondAuthor, HttpMethod.Post, "/api/posts", new SavePostRequest
+        {
+            Title = "Segona publicació", BodyMarkdown = "Contingut", Tags = ["cultura", "actualitat"]
+        });
+        Assert.Equal(HttpStatusCode.Created, firstPost.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, secondPost.StatusCode);
+
+        for (var index = 1; index <= 10; index++)
+        {
+            var author = index % 2 == 0 ? firstAuthor : secondAuthor;
+            using var response = await Mutate(author, HttpMethod.Post, "/api/posts", new SavePostRequest
+            {
+                Title = $"Publicació del tema {index}", BodyMarkdown = "Contingut", Tags = [$"tema-{index:00}"]
+            });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        }
+
+        var topics = (await anonymous.GetFromJsonAsync<List<TopicResponse>>("/api/public/topics"))!;
+        Assert.Equal(10, topics.Count);
+        Assert.Equal(new TopicResponse("cultura", 2), topics[0]);
+        Assert.Equal(new TopicResponse("actualitat", 1), topics[1]);
+        Assert.All(topics.Skip(1), topic => Assert.Equal(1, topic.PostCount));
+        Assert.DoesNotContain(topics, topic => topic.Name == "tema-10");
     }
 
     [Fact]

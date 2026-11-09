@@ -18,6 +18,9 @@ public static class PostEndpoints
             .WithDescription("Lectura anónima. page >= 1; pageSize 1–50 (20 por defecto). Orden: fecha e ID descendentes. authorId y tag opcionales.");
         endpoints.MapGet("/api/public/posts/{id:guid}", GetAsync).AllowAnonymous()
             .Produces<PostResponse>().ProducesProblem(404);
+        endpoints.MapGet("/api/public/topics", TopicsAsync).AllowAnonymous()
+            .Produces<List<TopicResponse>>()
+            .WithDescription("Las 10 etiquetas con más publicaciones, ordenadas por número de resultados descendente y nombre ascendente.");
         var own = endpoints.MapGroup("/api/me/posts").RequireAuthorization().ProducesProblem(401);
         own.MapGet("", (ClaimsPrincipal user, ApplicationDbContext db, MarkdownRenderer markdown, CancellationToken ct,
                 int page = 1, int pageSize = 20, string? tag = null) =>
@@ -135,6 +138,18 @@ public static class PostEndpoints
         return Results.Ok(new PostResponse(post.Id, post.Title, html, post.AuthorId,
             post.AuthorName, post.CreatedAtUtc, post.UpdatedAtUtc, post.CommentCount, post.LikeCount, post.Tags,
             await AvatarAsync(post.AuthorId, db, ct)));
+    }
+
+    private static async Task<IResult> TopicsAsync(ApplicationDbContext db, CancellationToken ct)
+    {
+        var topics = await db.PostTags.AsNoTracking()
+            .GroupBy(postTag => postTag.TagName)
+            .Select(group => new { Name = group.Key, PostCount = group.Count() })
+            .OrderByDescending(topic => topic.PostCount)
+            .ThenBy(topic => topic.Name)
+            .Take(10)
+            .ToListAsync(ct);
+        return Results.Ok(topics.Select(topic => new TopicResponse(topic.Name, topic.PostCount)).ToList());
     }
 
     private static async Task<IResult> EditAsync(Guid id, ClaimsPrincipal user, ApplicationDbContext db, CancellationToken ct)

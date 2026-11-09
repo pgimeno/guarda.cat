@@ -1,5 +1,7 @@
 @page "/posts/new"
 @page "/posts/{Id:guid}/edit"
+@using System.Globalization
+@using System.Text
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @implements IDisposable
 @inject PostsClient Posts
@@ -49,8 +51,57 @@
                         }
                     }
                 </div>
-                <MudTextField T="string" Label="Etiquetes" @bind-Value="tagsText" Disabled="busy"
-                              HelperText="Fins a 5, separades per comes. Exemple: actualitat, cultura" />
+                <div class="tag-editor">
+                    <label for="post-tags">Etiquetes</label>
+                    <div class="tag-editor-input-row @(tagError is null ? null : "has-error")">
+                        <input @ref="tagInput" id="post-tags" class="tag-editor-input" value="@tagDraft"
+                               @oninput="OnTagInput" disabled="@TagInputDisabled"
+                               placeholder="@(editingTagIndex is null ? "Escriu una etiqueta i prem coma" : "Edita l'etiqueta")"
+                               aria-describedby="tag-editor-help @(tagError is null ? null : "tag-editor-error")"
+                               aria-invalid="@(tagError is not null)" />
+                        <button type="button" class="tag-editor-confirm" @onclick="CommitTagDraft"
+                                disabled="@(TagInputDisabled || string.IsNullOrWhiteSpace(tagDraft))"
+                                aria-label="@(editingTagIndex is null ? "Afegeix l'etiqueta" : "Confirma els canvis")"
+                                title="@(editingTagIndex is null ? "Afegeix" : "Confirma")">
+                            <MudIcon Icon="@(editingTagIndex is null ? Icons.Material.Filled.Add : Icons.Material.Filled.Check)" Size="Size.Small" />
+                        </button>
+                        @if (editingTagIndex is not null)
+                        {
+                            <button type="button" class="tag-editor-cancel" @onclick="CancelTagEdit" disabled="@busy"
+                                    aria-label="Cancel·la l'edició" title="Cancel·la">
+                                <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                            </button>
+                        }
+                    </div>
+                    @if (tags.Count > 0)
+                    {
+                        <div class="tag-editor-list" aria-label="Etiquetes afegides">
+                            @for (var index = 0; index < tags.Count; index++)
+                            {
+                                var tagIndex = index;
+                                var tag = tags[index];
+                                <span @key="tag" class="tag-editor-chip @(editingTagIndex == tagIndex ? "is-editing" : null)">
+                                    <button type="button" class="tag-editor-chip-label" @onclick="() => EditTag(tagIndex)"
+                                            disabled="@busy" aria-label="Edita l'etiqueta @tag" title="Edita">
+                                        #@tag
+                                    </button>
+                                    <button type="button" class="tag-editor-chip-remove" @onclick="() => RemoveTag(tagIndex)"
+                                            disabled="@busy" aria-label="Elimina l'etiqueta @tag" title="Elimina">
+                                        <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+                                    </button>
+                                </span>
+                            }
+                        </div>
+                    }
+                    <div class="tag-editor-meta">
+                        <span id="tag-editor-help">Fins a 5. Lletres, números, espais o guions.</span>
+                        <span aria-label="@tags.Count de 5 etiquetes">@tags.Count/5</span>
+                    </div>
+                    @if (tagError is not null)
+                    {
+                        <p id="tag-editor-error" class="tag-editor-error" role="alert">@tagError</p>
+                    }
+                </div>
                 <div class="page-actions">
                     <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="busy">@(Id is null ? "Publica" : "Desa els canvis")</MudButton>
                     <MudButton ButtonType="ButtonType.Button" Variant="Variant.Outlined" OnClick="PreviewAsync" Disabled="busy">Vista prèvia</MudButton>
@@ -74,12 +125,18 @@
     private CancellationTokenSource cancellation = new();
     private string? error;
     private string? preview;
-    private string tagsText = string.Empty;
+    private List<string> tags = [];
+    private string tagDraft = string.Empty;
+    private string? tagError;
+    private int? editingTagIndex;
+    private ElementReference tagInput;
+    private bool focusTagInput;
     private string imageSource = "none";
     private string imageUrl = string.Empty;
     private string? localImagePreview;
     private IBrowserFile? selectedImage;
     private bool loading, ready, busy;
+    private bool TagInputDisabled => busy || (tags.Count >= 5 && editingTagIndex is null);
     private string? ImagePreviewSource => imageSource == "file" ? localImagePreview
         : imageSource == "url" && imageUrl.Length > 0 ? imageUrl : null;
 
@@ -87,7 +144,8 @@
     {
         cancellation.Cancel(); cancellation.Dispose(); cancellation = new();
         var ct = cancellation.Token;
-        model = new(); tagsText = string.Empty; imageSource = "none"; imageUrl = string.Empty;
+        model = new(); tags = []; tagDraft = string.Empty; tagError = null; editingTagIndex = null;
+        imageSource = "none"; imageUrl = string.Empty;
         localImagePreview = null; selectedImage = null; preview = null; error = null; ready = false; loading = true;
         if (Id is { } id)
         {
@@ -96,8 +154,8 @@
             error = result.Error;
             if (result.Value is { } post)
             {
-                model = new() { Title = post.Title, BodyMarkdown = post.BodyMarkdown, Tags = post.Tags };
-                tagsText = string.Join(", ", post.Tags);
+                tags = [.. post.Tags];
+                model = new() { Title = post.Title, BodyMarkdown = post.BodyMarkdown, Tags = [.. tags] };
                 ready = true;
             }
         }
@@ -105,14 +163,22 @@
         loading = false;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!focusTagInput) return;
+        focusTagInput = false;
+        await tagInput.FocusAsync();
+    }
+
     private async Task SaveAsync()
     {
         if (busy) return;
+        if (!string.IsNullOrWhiteSpace(tagDraft) && !TryCommitTag(tagDraft)) return;
         busy = true;
         var ct = cancellation.Token;
         try
         {
-            model.Tags = tagsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            model.Tags = [.. tags];
             model.ImageUrl = Id is null && imageSource == "url" ? imageUrl : null;
             ApiResult<PostResponse> result;
             if (Id is null && imageSource == "url" && string.IsNullOrWhiteSpace(imageUrl))
@@ -135,6 +201,125 @@
             if (result.Value is { } post) Navigation.NavigateTo($"/posts/{post.Id}");
         }
         finally { busy = false; }
+    }
+
+    private void OnTagInput(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString() ?? string.Empty;
+        tagError = null;
+        if (!value.Contains(','))
+        {
+            tagDraft = value;
+            return;
+        }
+
+        var parts = value.Split(',');
+        tagDraft = parts[^1];
+        for (var index = 0; index < parts.Length - 1; index++)
+        {
+            if (string.IsNullOrWhiteSpace(parts[index])) continue;
+            if (TryCommitTag(parts[index])) continue;
+
+            tagDraft = string.Join(", ", parts[index..]);
+            return;
+        }
+    }
+
+    private void CommitTagDraft()
+    {
+        if (!string.IsNullOrWhiteSpace(tagDraft)) TryCommitTag(tagDraft);
+    }
+
+    private bool TryCommitTag(string value)
+    {
+        if (!TryNormalizeTag(value, out var normalized))
+        {
+            tagError = "Cada etiqueta ha de tenir entre 2 i 30 caràcters i només pot contenir lletres, números, espais o guions.";
+            return false;
+        }
+
+        var duplicateIndex = tags.FindIndex(tag => string.Equals(tag, normalized, StringComparison.Ordinal));
+        if (duplicateIndex >= 0 && duplicateIndex != editingTagIndex)
+        {
+            tagError = "Aquesta etiqueta ja està afegida.";
+            return false;
+        }
+
+        if (editingTagIndex is { } index)
+        {
+            tags[index] = normalized;
+            editingTagIndex = null;
+        }
+        else
+        {
+            if (tags.Count >= 5)
+            {
+                tagError = "Pots indicar un màxim de 5 etiquetes.";
+                return false;
+            }
+            tags.Add(normalized);
+        }
+
+        tagDraft = string.Empty;
+        tagError = null;
+        model.Tags = [.. tags];
+        return true;
+    }
+
+    private void EditTag(int index)
+    {
+        if (editingTagIndex == index)
+        {
+            focusTagInput = true;
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(tagDraft) && !TryCommitTag(tagDraft)) return;
+
+        editingTagIndex = index;
+        tagDraft = tags[index];
+        tagError = null;
+        focusTagInput = true;
+    }
+
+    private void CancelTagEdit()
+    {
+        editingTagIndex = null;
+        tagDraft = string.Empty;
+        tagError = null;
+    }
+
+    private void RemoveTag(int index)
+    {
+        tags.RemoveAt(index);
+        if (editingTagIndex == index) CancelTagEdit();
+        else if (editingTagIndex > index) editingTagIndex--;
+        tagError = null;
+        model.Tags = [.. tags];
+    }
+
+    private static bool TryNormalizeTag(string value, out string tag)
+    {
+        var source = value.Normalize(NormalizationForm.FormKC).Trim().TrimStart('#');
+        var result = new StringBuilder(source.Length);
+        var pendingSeparator = false;
+        foreach (var character in source)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                if (pendingSeparator && result.Length > 0) result.Append('-');
+                result.Append(char.ToLower(character, CultureInfo.InvariantCulture));
+                pendingSeparator = false;
+            }
+            else if (char.IsWhiteSpace(character) || character == '-') pendingSeparator = result.Length > 0;
+            else
+            {
+                tag = string.Empty;
+                return false;
+            }
+        }
+
+        tag = result.ToString();
+        return tag.Length is >= 2 and <= 30;
     }
 
     private async Task PreviewAsync()

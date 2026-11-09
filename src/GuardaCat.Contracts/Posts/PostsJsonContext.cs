@@ -11,6 +11,7 @@ namespace GuardaCat.Contracts.Posts;
 [JsonSerializable(typeof(EditPostResponse))]
 [JsonSerializable(typeof(PostStateResponse))]
 [JsonSerializable(typeof(LikeResponse))]
+[JsonSerializable(typeof(List<TopicResponse>))]
 [JsonSerializable(typeof(CommentResponse))]
 [JsonSerializable(typeof(PagedResponse<PostSummaryResponse>))]
 [JsonSerializable(typeof(PagedResponse<CommentResponse>))]

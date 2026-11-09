@@ -1,4 +1,6 @@
 @page "/"
+@implements IDisposable
+@inject PostsClient Posts
 
 <PageTitle>Publicacions — Guarda.cat</PageTitle>
 
@@ -74,18 +76,36 @@
                 <h2 id="topics-title">Temes</h2>
                 <span>Per explorar</span>
             </div>
-            <div class="topic-list" role="list">
-                @foreach (var topic in Topics)
+            @if (topicsLoading)
+            {
+                <p class="topic-status" role="status">Carregant temes…</p>
+            }
+            else if (topicsError is not null)
+            {
+                <div class="topic-status" role="alert">
+                    <p>@topicsError</p>
+                    <button class="secondary-action" @onclick="LoadTopicsAsync">Torna-ho a provar</button>
+                </div>
+            }
+            else if (topics.Count == 0)
+            {
+                <p class="topic-status">Els temes apareixeran quan es publiqui la primera etiqueta.</p>
+            }
+            else
+            {
+                <div class="topic-list" role="list">
+                @foreach (var topic in topics)
                 {
-                    <a @key="topic.Name" class="topic-row" role="listitem" href="@($"/?tag={Uri.EscapeDataString(topic.Name.ToLowerInvariant())}")">
+                    <a @key="topic.Name" class="topic-row" role="listitem" href="@($"/?tag={Uri.EscapeDataString(topic.Name)}")">
                         <span class="topic-mark" aria-hidden="true">#</span>
                         <div>
                             <strong>@topic.Name</strong>
-                            <span>@topic.Description</span>
+                            <span>@topic.PostCount @(topic.PostCount == 1 ? "resultat" : "resultats")</span>
                         </div>
                     </a>
                 }
-            </div>
+                </div>
+            }
         </section>
 
         <footer class="community-footer">Guarda.cat · Fet per conversar</footer>
@@ -96,13 +116,27 @@
     [SupplyParameterFromQuery] public int? Page { get; set; }
     [SupplyParameterFromQuery] public string? Tag { get; set; }
 
-    private static readonly (string Name, string Description)[] Topics =
-    [
-        ("Actualitat", "Catalunya i el que passa al món"),
-        ("Cultura", "Llibres, cinema, música i arts"),
-        ("Ciència", "Idees i descobertes"),
-        ("Esports", "Competició, equips i afició"),
-        ("Viatges", "Llocs, rutes i experiències"),
-        ("Vida", "Consells, preguntes i vivències")
-    ];
+    private readonly CancellationTokenSource topicsCancellation = new();
+    private List<TopicResponse> topics = [];
+    private string? topicsError;
+    private bool topicsLoading = true;
+
+    protected override Task OnInitializedAsync() => LoadTopicsAsync();
+
+    private async Task LoadTopicsAsync()
+    {
+        topicsLoading = true;
+        topicsError = null;
+        var result = await Posts.TopicsAsync(topicsCancellation.Token);
+        if (topicsCancellation.IsCancellationRequested) return;
+        topics = result.Value ?? [];
+        topicsError = result.Error;
+        topicsLoading = false;
+    }
+
+    public void Dispose()
+    {
+        topicsCancellation.Cancel();
+        topicsCancellation.Dispose();
+    }
 }

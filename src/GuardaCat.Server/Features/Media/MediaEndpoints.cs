@@ -42,6 +42,6 @@ public static class MediaEndpoints
             // Recheck after external I/O in case deletion happened during the read.
             if (bytes is null || !await db.MediaAssets.AnyAsync(value => value.Id == id, ct)) return Results.NotFound();
             return Results.Bytes(bytes, asset.ContentType);
-        }).AllowAnonymous().Produces(200, contentType: "image/jpeg").Produces(404);
+        }).AllowAnonymous().Produces(200).Produces(404);
     }
 }
