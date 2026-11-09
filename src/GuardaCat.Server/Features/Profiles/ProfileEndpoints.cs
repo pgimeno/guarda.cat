@@ -9,8 +9,14 @@ namespace GuardaCat.Server.Features.Profiles;
 
 public static class ProfileEndpoints
 {
+    private static readonly TimeZoneInfo CommunityTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
+
     public static void MapProfileEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/public/users/active-today", GetActiveTodayAsync).AllowAnonymous()
+            .Produces<List<ActiveUserResponse>>()
+            .WithDescription("Fins a cinc usuaris amb més publicacions i comentaris durant el dia actual a Europe/Madrid.");
+
         endpoints.MapGet("/api/public/users/{id:guid}", GetAsync).AllowAnonymous()
             .Produces<ProfileResponse>().ProducesProblem(404)
             .WithDescription("Perfil público: identificador, nombre y bio en texto plano. Sin email ni datos de Identity.");
@@ -21,6 +27,48 @@ public static class ProfileEndpoints
             .WithDescription("Perfil propio actual, sin caché, para edición.");
         own.MapPut("", UpdateAsync).Produces<ProfileResponse>().ProducesProblem(400).ProducesProblem(404)
             .WithDescription("Modifica exclusivamente el nombre y la bio de la sesión. Nombre: 2–60 caracteres; bio opcional: hasta 500. Requiere X-CSRF-TOKEN.");
+    }
+
+    private static async Task<IResult> GetActiveTodayAsync(ApplicationDbContext db, CancellationToken ct)
+    {
+        var localToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, CommunityTimeZone));
+        var startLocal = localToday.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        var endLocal = localToday.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, CommunityTimeZone);
+        var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, CommunityTimeZone);
+
+        var activity = db.Posts.AsNoTracking()
+            .Where(post => post.CreatedAtUtc >= startUtc && post.CreatedAtUtc < endUtc)
+            .Select(post => new { UserId = post.AuthorId, OccurredAtUtc = post.CreatedAtUtc })
+            .Concat(db.Comments.AsNoTracking()
+                .Where(comment => comment.CreatedAtUtc >= startUtc && comment.CreatedAtUtc < endUtc)
+                .Select(comment => new { UserId = comment.AuthorId, OccurredAtUtc = comment.CreatedAtUtc }));
+
+        var rankedUsers = await activity
+            .GroupBy(item => item.UserId)
+            .Select(group => new
+            {
+                Id = group.Key,
+                ActivityCount = group.Count(),
+                LastActivityUtc = group.Max(item => item.OccurredAtUtc)
+            })
+            .Join(db.Users.AsNoTracking(), item => item.Id, user => user.Id,
+                (item, user) => new { user.Id, user.DisplayName, item.ActivityCount, item.LastActivityUtc })
+            .OrderByDescending(user => user.ActivityCount)
+            .ThenByDescending(user => user.LastActivityUtc)
+            .ThenBy(user => user.Id)
+            .Take(5)
+            .ToListAsync(ct);
+
+        var ids = rankedUsers.Select(user => user.Id).ToList();
+        var avatars = await db.MediaAssets.AsNoTracking()
+            .Where(asset => ids.Contains(asset.OwnerId) && asset.PostId == null)
+            .ToDictionaryAsync(asset => asset.OwnerId, ct);
+
+        return Results.Ok(rankedUsers.Select(user => new ActiveUserResponse(
+            user.Id,
+            user.DisplayName,
+            avatars.TryGetValue(user.Id, out var avatar) ? MediaService.Response(avatar) : null)).ToList());
     }
 
     private static async Task<IResult> GetAsync(Guid id, ApplicationDbContext db, CancellationToken ct)
