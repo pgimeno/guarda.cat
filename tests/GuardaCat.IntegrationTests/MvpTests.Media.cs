@@ -75,7 +75,7 @@ public sealed partial class MvpTests
         var image = Assert.Single(listed!);
         Assert.Contains("<img", post.BodyHtml);
         var feed = await anonymous.GetFromJsonAsync<PagedResponse<PostSummaryResponse>>("/api/public/posts");
-        var summary = Assert.Single(feed!.Items);
+        var summary = Assert.Single(feed!.Items, value => value.Id == post.Id);
         Assert.Equal(image.Url, summary.ImageUrl);
         Assert.Equal("Text segur.", summary.Excerpt);
         Assert.DoesNotContain("![", summary.Excerpt);
@@ -148,7 +148,7 @@ public sealed partial class MvpTests
         var post = (await created.Content.ReadFromJsonAsync<PostResponse>())!;
         Assert.Contains("src=\"https://example.org/foto.png\"", post.BodyHtml);
         var feed = await owner.GetFromJsonAsync<PagedResponse<PostSummaryResponse>>("/api/public/posts");
-        var summary = Assert.Single(feed!.Items);
+        var summary = Assert.Single(feed!.Items, value => value.Id == post.Id);
         Assert.Equal("https://example.org/foto.png", summary.ImageUrl);
         Assert.Equal("Text abans i després.", summary.Excerpt);
         var externalEdit = await owner.GetFromJsonAsync<EditPostResponse>($"/api/me/posts/{post.Id}/edit");

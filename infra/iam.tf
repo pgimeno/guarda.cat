@@ -11,8 +11,9 @@ data "aws_iam_policy_document" "ecs_assume_role" {
 }
 
 resource "aws_iam_role" "execution" {
-  name               = "${local.name}-execution"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
+  name                 = "student-${local.name}-execution"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume_role.json
+  permissions_boundary = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/StudentBoundary"
 }
 
 resource "aws_iam_role_policy_attachment" "execution" {
@@ -34,8 +35,9 @@ resource "aws_iam_role_policy" "execution_parameter" {
 }
 
 resource "aws_iam_role" "task" {
-  name               = "${local.name}-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
+  name                 = "student-${local.name}-task"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume_role.json
+  permissions_boundary = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/StudentBoundary"
 }
 
 data "aws_iam_policy_document" "task" {

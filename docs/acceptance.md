@@ -1,8 +1,8 @@
 # Estado y evidencias de aceptación
 
-Revisión inicial: 03/11/2026. Última actualización: 09/11/2026. Corresponde al árbol de trabajo local, con cambios todavía sin commit. No acredita el despliegue del stack de aplicación en AWS ni una ejecución remota de GitHub Actions. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
+Revisión inicial: 03/11/2026. Última actualización: 09/11/2026. El despliegue manual del stack en AWS queda acreditado para la imagen `0b3946ab287a`; el árbol conserva cambios locales de infraestructura, pruebas y documentación todavía sin commit. No acredita una ejecución remota de GitHub Actions ni la aceptación funcional completa contra S3/SES reales. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
 
-Las evidencias de 66 pruebas registradas el 08/11/2026 pertenecen a la revisión ejecutada ese día. El árbol actual incorpora cambios posteriores en el flujo de imágenes al crear publicaciones y un workflow de CI todavía no versionado; ambos requieren una nueva ejecución completa antes de atribuirles aquella evidencia.
+La suite Release se repitió antes del despliegue el 09/11/2026: 67 pruebas superadas, 0 fallidas y 0 omitidas. El workflow de CI sigue sin acreditar una ejecución remota.
 
 ## Alcance acordado
 
@@ -42,7 +42,7 @@ Las evidencias de 66 pruebas registradas el 08/11/2026 pertenecen a la revisión
 | Comprobación | Resultado |
 | --- | --- |
 | Compilación de la solución | Correcta, sin advertencias ni errores en la compilación comprobada. |
-| `dotnet test tests/GuardaCat.IntegrationTests -c Release --no-restore` sobre el código actual | 32 superadas; 0 fallidas; 0 omitidas. |
+| `dotnet test tests/GuardaCat.IntegrationTests -c Release --no-build` sobre el código actual | 67 superadas; 0 fallidas; 0 omitidas. |
 | Registro y sesión por API | Registro no autentica, login emite cookie, `/api/me` responde según sesión y logout la retira. |
 | CSRF | Mutaciones de cuenta, posts, comentarios y vista previa sin token rechazadas; el token anónimo deja de servir tras login. |
 | Validación y concurrencia | Entradas inválidas rechazadas y dos registros concurrentes con el mismo email normalizado producen un alta y un conflicto. |
@@ -60,7 +60,7 @@ Las evidencias de 66 pruebas registradas el 08/11/2026 pertenecen a la revisión
 | Formulario de comentarios | Tras publicar, muestra el comentario confirmado y reinicia el formulario sin una falsa validación de campo vacío. |
 | `dotnet publish src/GuardaCat.Server -c Release --no-restore` | Correcto; arranque WASM y recursos del artefacto comprobados por HTTPS y en navegador. |
 
-Las pruebas automatizadas crean y eliminan bases `guardacat_auth_tests_<guid>` y verifican que los hosts usen esas bases. La comprobación visual usó la base temporal independiente `guardacat_mvp_ui_20261031`. Se retiraron el host y los datos de prueba. PostgreSQL continúa saludable. No se han probado aquí AWS, CDN, balanceador ni despliegue con contenedores.
+Las pruebas automatizadas crean y eliminan bases `guardacat_auth_tests_<guid>` y verifican que los hosts usen esas bases. La comprobación visual usó la base temporal independiente `guardacat_mvp_ui_20261031`. Se retiraron el host y los datos de prueba. El despliegue AWS, ALB, ACM, ECS, RDS y los smoke tests públicos se validaron el 09/11/2026; CloudFront continúa fuera del stack aprobado.
 
 La base habitual `guardacat` no se ha migrado durante esta validación. Antes de ejecutar el nuevo código sobre ella se debe aplicar `dotnet ef database update --project src/GuardaCat.Server --startup-project src/GuardaCat.Server`. La migración añade Posts y Comments; no elimina tablas existentes.
 
@@ -119,7 +119,7 @@ Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura públi
 - [x] Compilación Release sin errores ni advertencias. Quince pruebas aisladas de validación de imágenes y Markdown superadas.
 - [x] Suite completa PostgreSQL ejecutada el 01/11/2026: 66 superadas, 0 fallidas, 0 omitidas (19 s). Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente. Bases temporales creadas y eliminadas por los fixtures; no se modifica `guardacat`.
 - [x] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites, dos usuarios y 404 de URLs eliminadas confirmados por el usuario el 03/11/2026.
-- [ ] Integración con S3 y SES reales y publicación mediante ALB/ACM por validar en AWS. El contenedor Linux y S3-compatible local pertenecen a la fase 4.
+- [ ] Publicación mediante ALB/ACM validada en AWS el 09/11/2026. Quedan por validar el recorrido funcional completo con S3 y la entrega real mediante SES; el contenedor Linux y S3-compatible local pertenecen a la fase 4.
 
 El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración y desviaciones justificadas. La fase 3 queda cerrada; no se acredita despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
 
@@ -141,13 +141,13 @@ Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciert
 
 - [x] Fase 3: opcionales y validación funcional completados.
 - [x] Fase 4: implementación y validación reproducible completadas.
-- [ ] Fase 5: bootstrap AWS completado; pendientes regenerar/aplicar el plan completo, la migración puntual y la aceptación en la cuenta real.
+- [ ] Fase 5: stack AWS, imagen, migración y servicio desplegados; pendiente completar la aceptación funcional de S3/SES y cookies entre réplicas.
 - [ ] Fase 6: workflow de CI preparado solo en el árbol local; pendientes versionarlo, ejecutarlo en GitHub, añadir OIDC y desplegar automáticamente a AWS al hacer push a `main`.
 - [ ] Fase 7: simulacro local de restauración, alarmas, presupuesto y runbook preparados; pendientes restauración real, pruebas operativas y evidencias finales en AWS.
 
 La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el límite global orientativo de 200 USD están confirmados. Terraform prepara un presupuesto operativo de 60 USD para avisar antes. La configuración mantiene las claves de Data Protection compartidas en PostgreSQL sin añadir un cifrador KMS específico.
 
-### Fase 5 iniciada, revisiones del 06/11/2026 y 08/11/2026
+### Fase 5 desplegada, revisiones del 06/11/2026, 08/11/2026 y 09/11/2026
 
 - [x] Un único stack Terraform y backend S3 externo, privado, versionado, cifrado mediante SSE-S3 y con lockfile.
 - [x] VPC en dos AZ, subredes públicas para ALB/Fargate, subredes aisladas para RDS y ECR privado inmutable.
@@ -166,9 +166,24 @@ La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el 
 - [x] Coste optimizado según el temario: tareas de 0,25 vCPU/512 MiB, mezcla Fargate/Spot, Container Insights desactivado, Parameter Store estándar y ciclos de vida S3/ECR acotados.
 - [x] Tamaño reducido validado localmente con dos réplicas limitadas a 0,25 vCPU/512 MiB; packaging multiinstancia superado y límites locales restaurados después.
 - [x] Credenciales renovadas y `infrastructure.tfplan` regenerado/revisado: 59 altas, sin cambios ni destrucciones, `service_desired_count=0`, SES/ACM existentes sin cambios.
-- [ ] Aplicar el plan aprobado en AWS con `service_desired_count=0`.
-- [ ] Imagen publicada en ECR, tarea `--migrate` finalizada con código 0 y servicio elevado a dos tareas saludables.
-- [ ] S3, envío SES, cookies compartidas, HTTPS, backups RDS y versionado S3 validados en AWS real.
+- [x] Plan regenerado y aplicado en AWS con `service_desired_count=0`; los roles IAM se adaptaron al prefijo `student-` y al `StudentBoundary` exigidos por la cuenta de laboratorio.
+- [x] Imagen publicada en ECR, tarea `--migrate` finalizada con código 0 y servicio elevado a dos tareas saludables.
+- [ ] HTTPS, backups RDS y versionado S3 validados en AWS real. Quedan el recorrido funcional S3, la entrega SES y las cookies compartidas entre réplicas.
+
+#### Evidencia del despliegue manual del 09/11/2026
+
+| Evidencia | Resultado |
+| --- | --- |
+| Revisión e imagen | Tag `0b3946ab287a`; digest ECR `sha256:6c6a048c358a49f9f63c0c7607a76ec821b7ea61fa235fd451789fa86b62c0c3`. |
+| Credencial ECR temporal | Se usó exclusivamente `.codex-tmp-ecr/config.json`; el directorio quedó eliminado tras el `push`. |
+| Migración | Tarea `61796e3f56674295878435d9aad9c755`, `STOPPED` con código `0`. |
+| ECS/ALB | `desired=2`, `running=2`, `pending=0`; rollout completado y dos targets saludables: Fargate en `eu-west-1a` y Fargate Spot en `eu-west-1b`. |
+| DNS y HTTPS | `app.guarda.cat` resuelve al ALB; `/`, `/api/health/live` y `/api/health/ready` responden `200`. |
+| Persistencia | RDS PostgreSQL 17.9 `available`, Multi-AZ, retención 7 días y punto restaurable disponible; versionado S3 habilitado. |
+| Operación | Cinco alarmas CloudWatch en `OK`, presupuesto mensual de 60 USD presente y cero eventos con `ERROR` en la primera hora consultada. |
+| Terraform | `fmt -check` y `validate` correctos; plan final con `service_desired_count=2`: sin cambios. |
+
+Las identidades SES de `guarda.cat` y del destinatario de demostración están verificadas y DKIM figura `SUCCESS`, pero no se envió un correo externo durante esta ejecución. La suscripción de correo al topic SNS continúa `PendingConfirmation` y requiere confirmar el enlace recibido en el buzón.
 
 ### Fase 6: GitHub, GitHub Actions y CI/CD del curso
 

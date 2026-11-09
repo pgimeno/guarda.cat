@@ -1,8 +1,8 @@
 # Runbook de despliegue y recuperación en AWS
 
-Este procedimiento se ejecutará únicamente después de aprobar el coste y el `terraform plan`. El CI de `.github/workflows/ci.yml` no inicia sesión en AWS, no publica imágenes y no despliega: solo compila, prueba y construye una imagen local.
+El primer despliegue manual se completó el 09/11/2026 con la imagen `0b3946ab287a`, migración con código `0`, dos tareas saludables y smoke tests HTTPS correctos. Este procedimiento conserva la secuencia reproducible para despliegues posteriores. El CI de `.github/workflows/ci.yml` no inicia sesión en AWS, no publica imágenes y no despliega: solo compila, prueba y construye una imagen local.
 
-El plan se regeneró el 08/11/2026 con la sesión renovada y la configuración optimizada: 59 altas, sin cambios ni destrucciones y con el servicio detenido. Debe generarse de nuevo si cambia la configuración o el estado remoto; nunca se aplica un plan antiguo.
+El plan inicial se regeneró con la sesión renovada y se aplicó primero con el servicio detenido. El estado actual mantiene `service_desired_count=2`; debe generarse un plan nuevo si cambia la imagen, la configuración o el estado remoto y nunca se aplica un plan antiguo.
 
 ## Preparación y puertas de control
 
