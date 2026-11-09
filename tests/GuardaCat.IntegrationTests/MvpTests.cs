@@ -256,31 +256,35 @@ public sealed partial class MvpTests(PostgresFixture database) : IClassFixture<P
 
         using var firstPost = await Mutate(firstAuthor, HttpMethod.Post, "/api/posts", new SavePostRequest
         {
-            Title = "Primera publicació", BodyMarkdown = "Contingut", Tags = ["cultura"]
+            Title = "Primera publicació", BodyMarkdown = "Contingut", Tags = ["ranking-principal"]
         });
         using var secondPost = await Mutate(secondAuthor, HttpMethod.Post, "/api/posts", new SavePostRequest
         {
-            Title = "Segona publicació", BodyMarkdown = "Contingut", Tags = ["cultura", "actualitat"]
+            Title = "Segona publicació", BodyMarkdown = "Contingut", Tags = ["ranking-principal", "ranking-secundari"]
+        });
+        using var thirdPost = await Mutate(firstAuthor, HttpMethod.Post, "/api/posts", new SavePostRequest
+        {
+            Title = "Tercera publicació", BodyMarkdown = "Contingut", Tags = ["ranking-principal", "ranking-secundari"]
         });
         Assert.Equal(HttpStatusCode.Created, firstPost.StatusCode);
         Assert.Equal(HttpStatusCode.Created, secondPost.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, thirdPost.StatusCode);
 
         for (var index = 1; index <= 10; index++)
         {
             var author = index % 2 == 0 ? firstAuthor : secondAuthor;
             using var response = await Mutate(author, HttpMethod.Post, "/api/posts", new SavePostRequest
             {
-                Title = $"Publicació del tema {index}", BodyMarkdown = "Contingut", Tags = [$"tema-{index:00}"]
+                Title = $"Publicació del tema {index}", BodyMarkdown = "Contingut", Tags = [$"ranking-{index:00}"]
             });
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         }
 
         var topics = (await anonymous.GetFromJsonAsync<List<TopicResponse>>("/api/public/topics"))!;
         Assert.Equal(10, topics.Count);
-        Assert.Equal(new TopicResponse("cultura", 2), topics[0]);
-        Assert.Equal(new TopicResponse("actualitat", 1), topics[1]);
-        Assert.All(topics.Skip(1), topic => Assert.Equal(1, topic.PostCount));
-        Assert.DoesNotContain(topics, topic => topic.Name == "tema-10");
+        Assert.Equal(new TopicResponse("ranking-principal", 3), topics[0]);
+        Assert.Equal(new TopicResponse("ranking-secundari", 2), topics[1]);
+        Assert.All(topics.Skip(2), topic => Assert.Equal(1, topic.PostCount));
     }
 
     [Fact]
