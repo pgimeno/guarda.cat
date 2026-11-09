@@ -1,8 +1,8 @@
 # Estado y evidencias de aceptación
 
-Revisión inicial: 03/11/2026. Última actualización: 09/11/2026. El despliegue manual del stack en AWS queda acreditado para la imagen `0b3946ab287a`; el árbol conserva cambios locales de infraestructura, pruebas y documentación todavía sin commit. No acredita una ejecución remota de GitHub Actions ni la aceptación funcional completa contra S3/SES reales. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
+Revisión inicial: 03/11/2026. Última actualización: 09/11/2026. El despliegue manual del stack en AWS queda acreditado para la imagen `0b3946ab287a`. La CI remota se ejecutó correctamente para `f15953f`; el CD automático queda preparado en el árbol local y pendiente de versionar, configurar sus secretos y ejecutarse desde `main`. La aceptación funcional completa contra S3/SES reales continúa pendiente. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
 
-La suite Release se repitió antes del despliegue el 09/11/2026: 67 pruebas superadas, 0 fallidas y 0 omitidas. El workflow de CI sigue sin acreditar una ejecución remota.
+La suite Release se repitió antes del despliegue el 09/11/2026: 67 pruebas superadas, 0 fallidas y 0 omitidas. El workflow de CI remoto finalizó correctamente para `f15953f` y conservó el artefacto TRX.
 
 ## Alcance acordado
 
@@ -142,7 +142,7 @@ Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciert
 - [x] Fase 3: opcionales y validación funcional completados.
 - [x] Fase 4: implementación y validación reproducible completadas.
 - [ ] Fase 5: stack AWS, imagen, migración y servicio desplegados; pendiente completar la aceptación funcional de S3/SES y cookies entre réplicas.
-- [ ] Fase 6: workflow de CI preparado solo en el árbol local; pendientes versionarlo, ejecutarlo en GitHub, añadir OIDC y desplegar automáticamente a AWS al hacer push a `main`.
+- [ ] Fase 6: CI versionada y ejecutada; CD con credenciales de GitHub Secrets preparado localmente. Pendientes cargar los Secrets, versionar el CD y acreditar un despliegue automático desde `main`.
 - [ ] Fase 7: simulacro local de restauración, alarmas, presupuesto y runbook preparados; pendientes restauración real, pruebas operativas y evidencias finales en AWS.
 
 La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el límite global orientativo de 200 USD están confirmados. Terraform prepara un presupuesto operativo de 60 USD para avisar antes. La configuración mantiene las claves de Data Protection compartidas en PostgreSQL sin añadir un cifrador KMS específico.
@@ -161,7 +161,7 @@ La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el 
 - [x] CNAME de ACM y tres CNAME DKIM publicados en Hostinger con TTL 300; ACM figura `ISSUED` y las identidades SES de dominio y destinatario figuran verificadas.
 - [x] Primer plan completo revisado: 51 altas, sin cambios ni destrucciones y `service_desired_count=0`; quedó obsoleto al añadir presupuesto y alarmas y no debe aplicarse.
 - [x] Terraform formateado y validado después de añadir presupuesto mensual de 60 USD, avisos de coste, SNS y cinco alarmas de RDS/ECS/ALB.
-- [x] CI de solo lectura preparado localmente: compila, ejecuta pruebas, verifica el artefacto Release y construye la imagen sin publicarla ni usar credenciales AWS. `.github/workflows/ci.yml` aún no está versionado y no acredita una ejecución en GitHub.
+- [x] CI de solo lectura versionada y ejecutada en GitHub: compila, ejecuta pruebas, verifica el artefacto Release y construye la imagen sin publicarla ni usar credenciales AWS.
 - [x] Validación local del 08/11/2026: 66 pruebas superadas, packaging multiinstancia correcto, imagen UID 1654 y simulacro aislado de backup/restauración PostgreSQL correcto.
 - [x] Coste optimizado según el temario: tareas de 0,25 vCPU/512 MiB, mezcla Fargate/Spot, Container Insights desactivado, Parameter Store estándar y ciclos de vida S3/ECR acotados.
 - [x] Tamaño reducido validado localmente con dos réplicas limitadas a 0,25 vCPU/512 MiB; packaging multiinstancia superado y límites locales restaurados después.
@@ -206,29 +206,31 @@ El ejemplo del curso usa Node/npm, una etiqueta `latest` y las acciones de rende
 
 - .NET 10, PostgreSQL real, `dotnet restore`, compilación Release, pruebas de integración y verificación del artefacto publicado sustituyen a `npm install` y `npm test`;
 - la imagen se identifica mediante SHA de commit y se registra también su digest de ECR; no se despliega `latest` porque no identifica de forma inmutable los bytes ejecutados;
-- Terraform sigue siendo la fuente de verdad de la task definition y de la imagen del servicio. El pipeline no debe actualizar ECS por una segunda vía que Terraform revierta después;
+- Terraform sigue siendo la fuente de verdad de la infraestructura base. Para reproducir el ejercicio del curso, el pipeline actualiza únicamente las revisiones de las task definitions y el servicio mediante las acciones oficiales de ECS. Un `terraform apply` posterior debe recibir el mismo `image_tag` desplegado para no recuperar una revisión anterior;
 - una tarea ECS puntual ejecuta `--migrate` y debe terminar con código `0` antes de actualizar el servicio web;
 - el rollout espera estabilidad y health checks HTTPS; el circuit breaker puede revertir la imagen, pero nunca revierte automáticamente el esquema;
 - para este proyecto académico basta un environment `production`, salvo que se decida crear y mantener infraestructura separada de staging.
+- para reproducir el entregable realizado durante el curso, la autenticación del job de despliegue usa `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y, cuando corresponda a la cuenta de laboratorio, `AWS_SESSION_TOKEN` almacenados como GitHub Actions Secrets. Es una excepción consciente frente al OIDC recomendado por el temario;
+- las claves nunca se escriben en el repositorio ni se imprimen. Si son credenciales temporales de AWS Academy, los Secrets permanecen configurados pero deben actualizarse cuando caduque la sesión.
 
 #### Estado actual del workflow local
 
 | Componente | Estado | Evidencia o limitación |
 | --- | --- | --- |
-| Repositorio GitHub | Parcial | Existe el remoto `origin` de GitHub, pero falta acreditar que el repositorio y el historial final cumplen la entrega pública. |
-| Workflow de CI | Preparado localmente | `.github/workflows/ci.yml` existe, pero está sin seguimiento Git y todavía no puede ejecutarse en GitHub. |
-| Triggers | Parcial | Declara `push`, `pull_request` y `workflow_dispatch`; no existe aún un job de despliegue restringido a `main`. |
+| Repositorio GitHub | Parcial | Existe el repositorio público `pgimeno/guarda.cat`; falta integrar la revisión final en `main`. |
+| Workflow de CI | Ejecutado | `.github/workflows/ci.yml` está versionado y la ejecución remota de `f15953f` finalizó correctamente. |
+| Triggers | Preparado localmente | CI para PR y push a `main`; el despliegue reutilizable solo se invoca tras una validación correcta en un push a `main`. |
 | Entorno de pruebas | Preparado | Runner Ubuntu y PostgreSQL 17 como service container saludable en el puerto 5433. |
 | SDK y compilación | Preparado | `actions/setup-dotnet` usa `global.json`; se restauran y compilan la solución y los tests en Release. |
-| Tests | Preparado localmente | Ejecuta integración contra PostgreSQL y genera TRX; falta una ejecución remota y publicar una evidencia enlazable del resultado. |
+| Tests | Ejecutado | Ejecuta integración contra PostgreSQL, genera TRX y la ejecución remota conservó el artefacto. |
 | Artefacto Release | Preparado | Publica el servidor y ejecuta `scripts/verify-release.ps1`. |
 | Imagen Docker | Preparado sin publicación | Construye `guardacat:${GITHUB_SHA}` y comprueba que el runtime use UID 1654. |
 | Artefactos CI | Parcial | Sube TRX durante 14 días; no conserva todavía digest de imagen, plan Terraform ni manifiesto de despliegue. |
-| Terraform en CI | Pendiente | No ejecuta `terraform fmt -check`, `terraform init -backend=false` ni `terraform validate`. |
+| Terraform en CI | Preparado localmente | Ejecuta `terraform fmt -check`, `terraform init -backend=false` y `terraform validate` sin credenciales AWS. |
 | Análisis de seguridad | Pendiente | No hay auditoría de dependencias, búsqueda de secretos ni análisis específico de Docker/Terraform. Debe adaptarse al stack .NET sin copiar literalmente `npm audit`. |
-| OIDC GitHub→AWS | Pendiente | No existe proveedor OIDC ni rol de despliegue gestionados por Terraform. |
-| Publicación ECR | Pendiente | No inicia sesión, no publica la imagen y no registra el digest. |
-| Migración y despliegue ECS | Pendiente | No ejecuta `--migrate`, no actualiza Terraform/ECS, no espera estabilidad y no prueba salud. |
+| Credenciales GitHub→AWS | Configuradas | El repositorio contiene los tres GitHub Secrets cifrados; no se usa OIDC para este entregable. Al proceder de IAM Identity Center, deben renovarse cuando caduque la sesión. |
+| Publicación ECR | Preparada localmente | Publica una etiqueta inmutable con el SHA completo y registra el digest. Falta la primera ejecución remota. |
+| Migración y despliegue ECS | Preparado localmente | Ejecuta una tarea `--migrate`, bloquea el rollout hasta que termine, actualiza ECS a dos tareas, espera estabilidad y prueba salud. Falta la primera ejecución remota. |
 | Evidencia GitHub | Pendiente | No existe URL de ejecución, check de PR, deployment de environment ni registro del SHA desplegado. |
 
 #### Diseño objetivo del pipeline
@@ -237,30 +239,30 @@ El ejemplo del curso usa Node/npm, una etiqueta `latest` y las acciones de rende
 | --- | --- | --- | --- |
 | Validación | PR, push y ejecución manual; sin AWS | Checkout, SDK fijado, restore, build Release, tests PostgreSQL, artefacto Release, imagen Docker, UID no-root y Terraform fmt/validate. | Todos los jobs verdes y resultados TRX descargables. |
 | Análisis | PR y push; sin AWS | Analizadores del compilador, dependencias vulnerables, secretos y revisión de configuración Docker/Terraform con herramientas mantenidas y fijadas. | Un hallazgo bloqueante hace fallar el workflow; no se imprimen secretos. |
-| Autenticación | Solo push a `main` o ejecución manual autorizada | Solicitar token OIDC y asumir el rol AWS limitado al repositorio, rama/environment y audiencia esperados. | CloudTrail/STS identifica el rol federado; GitHub no contiene access keys permanentes. |
-| Build y publicación | Solo después de validación y OIDC | Construir una vez, etiquetar con SHA completo o corto acordado, publicar en ECR inmutable y capturar el digest. | La etiqueta corresponde al commit y el digest desplegado queda como output/artefacto. |
-| Preparación Terraform | Job de despliegue `production` | Generar y revisar/aplicar los cambios necesarios sin sustituir Terraform por actualizaciones manuales de ECS. | Plan sin destrucciones inesperadas y task definitions referencian la revisión inmutable. |
+| Autenticación | Solo push a `main`, después de superar la CI | Configurar AWS mediante los Secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y el token de sesión opcional. | STS valida la identidad; las claves no aparecen en código, artefactos ni logs. |
+| Build y publicación | Solo después de validación y autenticación AWS | Construir una vez, etiquetar con SHA completo o corto acordado, publicar en ECR inmutable y capturar el digest. | La etiqueta corresponde al commit y el digest desplegado queda como output/artefacto. |
+| Preparación ECS | Job de despliegue `production` | Descargar las task definitions vigentes, sustituir únicamente la imagen y registrar revisiones nuevas mediante las acciones oficiales de ECS. | Las task definitions referencian el SHA inmutable y conservan la configuración creada por Terraform. |
 | Migración | Después de publicar la imagen, antes del rollout | Ejecutar exactamente una tarea ECS del mismo artefacto con `--migrate`; esperar fin y leer exit code/logs. | Código `0`; cualquier fallo detiene el despliegue y mantiene la revisión web anterior. |
 | Rollout | Solo tras migración correcta | Elevar o actualizar ECS a dos tareas, esperar servicio estable y comprobar `/api/health/live`, `/api/health/ready` y HTTPS público. | Dos tareas saludables, sin rollout fallido y smoke test correcto. |
 | Evidencias y rollback | Siempre, especialmente tras fallo | Conservar SHA, digest, revisión de task definition, plan, migración, health checks y enlace de la ejecución. Permitir volver a una imagen compatible conocida. | La ejecución explica qué se desplegó; un rollback no intenta revertir automáticamente la base de datos. |
 
-#### GitHub, OIDC y mínimo privilegio
+#### GitHub, credenciales del curso y mínimo privilegio
 
 - [ ] Versionar los workflows y comprobar que GitHub Actions está habilitado en el repositorio.
 - [ ] Configurar checks obligatorios de CI antes de integrar cambios en `main`.
-- [ ] Crear el provider OIDC de GitHub en IAM con audiencia `sts.amazonaws.com`.
-- [ ] Crear mediante Terraform un rol de despliegue cuya confianza limite `sub` al repositorio real y a `main` o al environment `production`; no usar el patrón abierto `repo:OWNER/REPOSITORY:*` como condición final si puede restringirse más.
-- [ ] Conceder solo las acciones necesarias sobre ECR, ECS, la tarea de migración, `iam:PassRole` limitado y los recursos Terraform administrados. No usar `AdministratorAccess`.
-- [ ] Declarar `contents: read` como permiso base y `id-token: write` únicamente en el job que asume el rol.
-- [ ] Configurar en GitHub Variables la región, cuenta, repositorio ECR, clúster, servicio, dominio y ARN del rol. Los secretos de aplicación permanecen en Parameter Store/AWS, no en GitHub.
-- [ ] Crear el environment `production`, restringirlo a `main` y decidir si requiere aprobación manual. Una aprobación es compatible con el curso, pero el camino ordinario debe seguir siendo un despliegue iniciado por push a `main`.
-- [ ] Definir concurrencia única por environment con despliegues en cola y sin cancelar una migración o apply en curso.
+- [x] Preparar autenticación mediante GitHub Actions Secrets, sin copiar credenciales al workflow ni al historial Git.
+- [x] Cargar `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN` procedentes de IAM Identity Center en el repositorio; deben rotarse cuando caduque la sesión.
+- [ ] Confirmar que la identidad usada tiene únicamente las acciones necesarias sobre ECR, ECS, `iam:PassRole` y los recursos desplegados. No usar credenciales root.
+- [x] Declarar `contents: read` como único permiso del workflow; no solicitar `id-token: write` porque este entregable no usa OIDC.
+- [x] Configurar región, repositorio ECR, clúster, servicio y dominio como valores no sensibles del workflow. Los secretos de aplicación permanecen en Parameter Store/AWS, no en GitHub.
+- [x] Crear el environment `production`, restringido a `main` y sin aprobación manual para que el camino ordinario sea el despliegue iniciado por push exigido por el entregable.
+- [x] Definir concurrencia única para `production`, con despliegues en cola y sin cancelar una migración o rollout en curso.
 
 #### Criterios de aceptación de fase 6
 
 - [ ] Una pull request ejecuta validación completa sin obtener credenciales AWS y publica un check verificable.
 - [ ] Un fallo de compilación, test, análisis o validación Terraform impide publicar y desplegar.
-- [ ] Un push de una revisión limpia a `main` publica en ECR exactamente la imagen de ese commit mediante OIDC.
+- [ ] Un push de una revisión limpia a `main` publica en ECR exactamente la imagen de ese commit mediante los GitHub Actions Secrets configurados.
 - [ ] La ejecución registra SHA y digest; ninguna task definition de producción usa `latest`.
 - [ ] Solo una tarea `--migrate` se ejecuta por despliegue y su código distinto de cero bloquea el rollout.
 - [ ] Tras una migración correcta, ECS mantiene dos tareas saludables y GitHub espera estabilidad antes de finalizar correctamente.
