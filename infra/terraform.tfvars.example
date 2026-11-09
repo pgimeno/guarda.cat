@@ -1,0 +1,7 @@
+owner                    = "replace-with-owner"
+image_tag                = "replace-with-git-sha"
+ses_demo_recipient       = "replace-with-verified-email@example.com"
+monthly_budget_limit_usd = 60
+
+# El servicio permanece detenido hasta ejecutar la tarea --migrate.
+service_desired_count = 0

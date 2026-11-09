@@ -7,6 +7,14 @@
 *.suo
 TestResults/
 artifacts/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+backend.hcl
+**/App_Data/
 
 # .NET build outputs
 [Dd]ebug/

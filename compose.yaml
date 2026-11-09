@@ -1,5 +1,27 @@
 name: guardacat
 
+x-app-environment: &app-environment
+  ASPNETCORE_ENVIRONMENT: Packaging
+  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+  ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=guardacat;Username=guardacat;Password=${GUARDACAT_DB_PASSWORD:?Define GUARDACAT_DB_PASSWORD en el archivo .env}
+  Media__Provider: S3
+  Media__Bucket: guardacat-media
+  Media__Region: eu-west-1
+  Media__ServiceUrl: http://minio:9000
+  Media__UseServerSideEncryption: "false"
+  AWS_ACCESS_KEY_ID: ${GUARDACAT_S3_ACCESS_KEY:?Define GUARDACAT_S3_ACCESS_KEY en el archivo .env}
+  AWS_SECRET_ACCESS_KEY: ${GUARDACAT_S3_SECRET_KEY:?Define GUARDACAT_S3_SECRET_KEY en el archivo .env}
+  Email__Provider: Capture
+  Email__PublicBaseUrl: https://localhost:8443
+
+x-app: &app
+  image: guardacat-app:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: *app-environment
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -17,5 +39,89 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: alpine/minio:RELEASE.2025-10-15T17-29-55Z
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        chown -R minio:minio /data
+        exec su minio -s /bin/sh -c 'exec minio server /data'
+    environment:
+      MINIO_ROOT_USER: ${GUARDACAT_S3_ACCESS_KEY:?Define GUARDACAT_S3_ACCESS_KEY en el archivo .env}
+      MINIO_ROOT_PASSWORD: ${GUARDACAT_S3_SECRET_KEY:?Define GUARDACAT_S3_SECRET_KEY en el archivo .env}
+    volumes:
+      - guardacat-minio:/data
+    restart: unless-stopped
+
+  minio-init:
+    image: guardacat-minio-client:local
+    build:
+      context: .
+      dockerfile: deploy/minio-client.Dockerfile
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${GUARDACAT_S3_ACCESS_KEY:?Define GUARDACAT_S3_ACCESS_KEY en el archivo .env}
+      MINIO_ROOT_PASSWORD: ${GUARDACAT_S3_SECRET_KEY:?Define GUARDACAT_S3_SECRET_KEY en el archivo .env}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mcli alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 1; done
+        mcli mb --ignore-existing local/guardacat-media
+    restart: "no"
+
+  migrate:
+    <<: *app
+    command: ["--migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web1:
+    <<: *app
+    environment:
+      <<: *app-environment
+      Diagnostics__InstanceName: web1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    expose:
+      - "8080"
+
+  web2:
+    <<: *app
+    environment:
+      <<: *app-environment
+      Diagnostics__InstanceName: web2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    expose:
+      - "8080"
+
+  proxy:
+    image: caddy:2.11.7-alpine
+    depends_on:
+      - web1
+      - web2
+    ports:
+      - "127.0.0.1:8443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - guardacat-caddy-data:/data
+      - guardacat-caddy-config:/config
+    restart: unless-stopped
+
 volumes:
   guardacat-postgres:
+  guardacat-minio:
+  guardacat-caddy-data:
+  guardacat-caddy-config:

@@ -1,0 +1,16 @@
+.git
+.vs
+.idea
+**/bin
+**/obj
+**/App_Data
+artifacts
+TestResults
+tmp
+tests
+docs
+.env
+.env.*
+*.user
+*.suo
+*.binlog

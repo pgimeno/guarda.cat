@@ -1,0 +1,44 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4">
+            Enganxa l'enllaç directe d'una imatge. L'arxiu continuarà allotjat al lloc d'origen.
+        </MudText>
+        <MudTextField T="string" Label="Enllaç de la imatge" @bind-Value="url" Immediate="true"
+                      Placeholder="https://exemple.cat/imatge.jpg" Error="@(validationError is not null)"
+                      ErrorText="@validationError" Autofocus="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel·la</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Add">Afegeix la imatge</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = null!;
+    [Parameter] public string InitialUrl { get; set; } = string.Empty;
+
+    private string url = string.Empty;
+    private string? validationError;
+
+    protected override void OnInitialized() => url = InitialUrl;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private void Add()
+    {
+        var source = url.Trim();
+        if (source.Length == 0)
+        {
+            validationError = "Indica un enllaç.";
+            return;
+        }
+        if (source.Length > 2_048 || !Uri.TryCreate(source, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            validationError = "L'enllaç ha de començar per http:// o https://.";
+            return;
+        }
+
+        Dialog.Close(DialogResult.Ok(uri.AbsoluteUri));
+    }
+}

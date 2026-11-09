@@ -1,8 +1,11 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Microsoft.AspNetCore.Components.Forms;
 using GuardaCat.Contracts.Auth;
+using GuardaCat.Contracts.Media;
 using GuardaCat.Contracts.Posts;
 
 namespace GuardaCat.Client.Features.Posts;
@@ -13,9 +16,10 @@ public sealed class PostsClient(HttpClient http)
 {
     private static PostsJsonContext Json => PostsJsonContext.Default;
 
-    public Task<ApiResult<PagedResponse<PostSummaryResponse>>> ListAsync(int page, bool own, string? tag, CancellationToken ct)
+    public Task<ApiResult<PagedResponse<PostSummaryResponse>>> ListAsync(int page, bool own, string? tag, CancellationToken ct, Guid? authorId = null)
     {
         var filter = string.IsNullOrWhiteSpace(tag) ? string.Empty : $"&tag={Uri.EscapeDataString(tag)}";
+        if (!own && authorId is not null) filter += $"&authorId={authorId}";
         return SendAsync(HttpMethod.Get, $"api/{(own ? "me" : "public")}/posts?page={page}{filter}", null,
             Json.PagedResponsePostSummaryResponse, ct);
     }
@@ -33,8 +37,33 @@ public sealed class PostsClient(HttpClient http)
         SendAsync(id is null ? HttpMethod.Post : HttpMethod.Put, id is null ? "api/posts" : $"api/posts/{id}",
             JsonContent.Create(request, Json.SavePostRequest), Json.PostResponse, ct);
 
-    public Task<ApiResult<PreviewResponse>> PreviewAsync(string body, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, "api/posts/preview", JsonContent.Create(new PreviewRequest { BodyMarkdown = body }, Json.PreviewRequest), Json.PreviewResponse, ct);
+    public async Task<ApiResult<PostResponse>> SaveWithImageAsync(SavePostRequest request, IBrowserFile file, CancellationToken ct)
+    {
+        if (file.Size > MediaLimits.MaxBytes) return new(null, "La imatge supera els 5 MiB.");
+        if (file.ContentType is not ("image/jpeg" or "image/png")) return new(null, "Tria una imatge JPEG o PNG.");
+        try
+        {
+            await using var stream = file.OpenReadStream(MediaLimits.MaxBytes, ct);
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(request.Title), "Title");
+            content.Add(new StringContent(request.BodyMarkdown), "BodyMarkdown");
+            foreach (var tag in request.Tags) content.Add(new StringContent(tag), "Tags");
+            using var image = new StreamContent(stream);
+            image.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+            content.Add(image, "Image", file.Name);
+            return await SendAsync(HttpMethod.Post, "api/posts/with-image", content, Json.PostResponse, ct);
+        }
+        catch (Exception exception) when (exception is IOException or OperationCanceledException)
+        {
+            return new(null, "No s'ha pogut llegir la imatge. Torna-la a seleccionar.");
+        }
+    }
+
+    public Task<ApiResult<PreviewResponse>> PreviewAsync(string body, CancellationToken ct, Guid? postId = null,
+        string? imageUrl = null) =>
+        SendAsync(HttpMethod.Post, "api/posts/preview",
+            JsonContent.Create(new PreviewRequest { BodyMarkdown = body, PostId = postId, ImageUrl = imageUrl }, Json.PreviewRequest),
+            Json.PreviewResponse, ct);
 
     public Task<ApiResult<PostResponse>> DeleteAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, $"api/posts/{id}", null, Json.PostResponse, ct);
@@ -42,13 +71,14 @@ public sealed class PostsClient(HttpClient http)
     public Task<ApiResult<LikeResponse>> SetLikeAsync(Guid id, bool liked, CancellationToken ct) =>
         SendAsync(liked ? HttpMethod.Put : HttpMethod.Delete, $"api/posts/{id}/like", null, Json.LikeResponse, ct);
 
-    public Task<ApiResult<PagedResponse<CommentResponse>>> CommentsAsync(Guid id, int page, CancellationToken ct) =>
-        SendAsync(HttpMethod.Get, $"api/public/posts/{id}/comments?page={page}", null, Json.PagedResponseCommentResponse, ct);
+    public Task<ApiResult<PagedResponse<CommentResponse>>> CommentsAsync(Guid id, int page, string sort, CancellationToken ct) =>
+        SendAsync(HttpMethod.Get, $"api/public/posts/{id}/comments?page={page}&sort={Uri.EscapeDataString(sort)}", null,
+            Json.PagedResponseCommentResponse, ct);
 
     public Task<ApiResult<CommentResponse>> CommentAsync(Guid id, CreateCommentRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"api/posts/{id}/comments", JsonContent.Create(request, Json.CreateCommentRequest), Json.CommentResponse, ct);
 
-    private async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string path, HttpContent? body, JsonTypeInfo<T> type, CancellationToken ct)
+    internal async Task<ApiResult<T>> SendAsync<T>(HttpMethod method, string path, HttpContent? body, JsonTypeInfo<T> type, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(method, path) { Content = body };
         try

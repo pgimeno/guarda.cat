@@ -8,7 +8,7 @@ public sealed class SessionCookieManager : ICookieManager
     private readonly ChunkingCookieManager cookies = new();
 
     public string? GetRequestCookie(HttpContext context, string key) =>
-        context.Request.Path.StartsWithSegments("/api/public")
+        context.Request.Path.StartsWithSegments("/api/public") || context.Request.Path.StartsWithSegments("/media")
             ? null : cookies.GetRequestCookie(context, key);
 
     public void AppendResponseCookie(HttpContext context, string key, string? value, CookieOptions options) =>

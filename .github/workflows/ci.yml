@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+  GUARDACAT_TEST_POSTGRES: Host=127.0.0.1;Port=5433;Database=postgres;Username=guardacat;Password=guardacat-ci
+
+jobs:
+  build-test-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: guardacat
+          POSTGRES_PASSWORD: guardacat-ci
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U guardacat -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.8
+
+      - name: Restore
+        run: dotnet restore GuardaCat.slnx
+
+      - name: Build
+        run: dotnet build GuardaCat.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: >-
+          dotnet test tests/GuardaCat.IntegrationTests/GuardaCat.IntegrationTests.csproj
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=integration.trx"
+          --results-directory TestResults
+
+      - name: Publish and verify release artifact
+        shell: pwsh
+        run: |
+          dotnet publish src/GuardaCat.Server/GuardaCat.Server.csproj `
+            --configuration Release `
+            --no-restore `
+            --output artifacts/publish
+          ./scripts/verify-release.ps1 -PublishDirectory artifacts/publish
+
+      - name: Build container image without publishing
+        run: docker build --tag "guardacat:${GITHUB_SHA}" .
+
+      - name: Verify non-root runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect "guardacat:${GITHUB_SHA}" --format '{{.Config.User}}')" = "1654"
+
+      - name: Validate Terraform
+        working-directory: infra
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+          retention-days: 14
+
+  deploy-production:
+    name: Deploy production
+    needs: build-test-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy-aws.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}

@@ -1,0 +1,106 @@
+@implements IDisposable
+@inject MediaClient Media
+@inject ProfilesClient Profiles
+
+<section class="media-editor" aria-label="@(PostId is null ? "Avatar" : "Imatges de la publicació")">
+    <h2>@(PostId is null ? "Avatar" : "Imatges")</h2>
+    <p class="post-meta">@(PostId is null ? "JPEG o PNG, fins a 256 KiB i 512 × 512 píxels. El canvi es publica immediatament." : "JPEG o PNG, fins a 5 MiB, 4096 píxels per costat i 12 megapíxels. Desa el text per publicar les imatges inserides.")</p>
+    @if (error is not null) { <p role="alert">@error</p> }
+    @if (status is not null) { <p role="status">@status</p> }
+    @if (loading) { <p role="status">Carregant les imatges…</p> }
+    else
+    {
+        <div class="media-gallery">
+            @foreach (var item in items)
+            {
+                <figure @key="item.Id">
+                    <img src="@item.Url" alt="@(PostId is null ? "El teu avatar" : "Imatge adjunta")" class="@(PostId is null ? "profile-avatar" : "post-image")" />
+                    <figcaption>
+                        @if (PostId is not null)
+                        {
+                            <button type="button" class="secondary-action" disabled="@busy" @onclick="() => OnUploaded.InvokeAsync(item)">Insereix al text</button>
+                        }
+                        <button type="button" class="secondary-action" disabled="@busy" @onclick="() => DeleteAsync(item.Id)">Elimina</button>
+                    </figcaption>
+                </figure>
+            }
+        </div>
+        @if (PostId is null || items.Count < MediaLimits.MaxPostImages)
+        {
+            <label class="media-upload">@(PostId is null && items.Count > 0 ? "Canvia l'avatar" : "Afegeix una imatge")
+                <InputFile OnChange="UploadAsync" accept="image/jpeg,image/png" disabled="@busy" />
+            </label>
+        }
+        else { <p>Has arribat al límit de cinc imatges.</p> }
+        @if (busy) { <p role="status">Desant la imatge…</p> }
+    }
+</section>
+
+@code {
+    [Parameter] public Guid? PostId { get; set; }
+    [Parameter] public EventCallback<MediaResponse> OnUploaded { get; set; }
+    [Parameter] public EventCallback<MediaResponse> OnRemoved { get; set; }
+    private readonly CancellationTokenSource cancellation = new();
+    private List<MediaResponse> items = [];
+    private string? error;
+    private string? status;
+    private bool loading, busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        loading = true;
+        if (PostId is { } id)
+        {
+            var result = await Media.ListAsync(id, cancellation.Token);
+            items = result.Value ?? []; error = result.Error;
+        }
+        else
+        {
+            var result = await Profiles.GetOwnAsync(cancellation.Token);
+            items = result.Value?.Avatar is { } avatar ? [avatar] : []; error = result.Error;
+        }
+        loading = false;
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs args)
+    {
+        if (busy) return;
+        busy = true; error = null; status = null;
+        try
+        {
+            var result = await Media.UploadAsync(PostId, args.File, cancellation.Token);
+            if (cancellation.IsCancellationRequested) return;
+            error = result.Error;
+            if (result.Value is { } item)
+            {
+                if (PostId is null) items.Clear();
+                items.Add(item);
+                await OnUploaded.InvokeAsync(item);
+                status = PostId is null ? "S'ha actualitzat l'avatar." : "Imatge pujada i inserida. Desa el text per publicar-la.";
+            }
+        }
+        finally { busy = false; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        if (busy) return;
+        busy = true; error = null; status = null;
+        try
+        {
+            var result = await Media.DeleteAsync(id, cancellation.Token);
+            if (cancellation.IsCancellationRequested) return;
+            error = result.Error;
+            if (error is null)
+            {
+                var removed = items.Single(item => item.Id == id);
+                items.Remove(removed);
+                await OnRemoved.InvokeAsync(removed);
+                status = "S'ha eliminat la imatge.";
+            }
+        }
+        finally { busy = false; }
+    }
+
+    public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }
+}

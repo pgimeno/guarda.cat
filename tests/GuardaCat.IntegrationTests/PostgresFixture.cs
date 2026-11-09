@@ -42,6 +42,9 @@ public sealed class PostgresFixture : IAsyncLifetime
         {
             builder.UseEnvironment("Development");
             builder.UseSetting("ConnectionStrings:Postgres", testConnection);
+            builder.UseSetting("Outbox:Enabled", "false");
+            builder.UseSetting("Media:LocalPath", Path.Combine(Path.GetTempPath(), databaseName, "media"));
+            builder.UseSetting("Email:CapturePath", Path.Combine(Path.GetTempPath(), databaseName, "mail"));
             builder.ConfigureLogging(logging => logging.ClearProviders());
         });
         using var scope = host.Services.CreateScope();
@@ -63,5 +66,10 @@ public sealed class PostgresFixture : IAsyncLifetime
         // The identifier is generated here, never supplied by configuration or by a test.
         await using var command = new NpgsqlCommand($"DROP DATABASE \"{databaseName}\" WITH (FORCE)", connection);
         await command.ExecuteNonQueryAsync();
+        var temporaryRoot = Path.GetFullPath(Path.GetTempPath());
+        var mediaDirectory = Path.GetFullPath(Path.Combine(temporaryRoot, databaseName));
+        if (!mediaDirectory.StartsWith(Path.TrimEndingDirectorySeparator(temporaryRoot) + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Invalid test cleanup path.");
+        if (Directory.Exists(mediaDirectory)) Directory.Delete(mediaDirectory, recursive: true);
     }
 }

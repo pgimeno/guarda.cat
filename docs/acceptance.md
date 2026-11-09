@@ -1,6 +1,8 @@
 # Estado y evidencias de aceptación
 
-Revisión: 31/10/2026. Corresponde al árbol de trabajo local, con cambios todavía sin commit. No acredita despliegue ni recursos en AWS.
+Revisión inicial: 03/11/2026. Última actualización: 09/11/2026. El despliegue manual del stack en AWS queda acreditado para la imagen `0b3946ab287a`. La CI remota se ejecutó correctamente para `f15953f`; el CD automático queda preparado en el árbol local y pendiente de versionar, configurar sus secretos y ejecutarse desde `main`. La aceptación funcional completa contra S3/SES reales continúa pendiente. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
+
+La suite Release se repitió antes del despliegue el 09/11/2026: 67 pruebas superadas, 0 fallidas y 0 omitidas. El workflow de CI remoto finalizó correctamente para `f15953f` y conservó el artefacto TRX.
 
 ## Alcance acordado
 
@@ -40,7 +42,7 @@ Revisión: 31/10/2026. Corresponde al árbol de trabajo local, con cambios todav
 | Comprobación | Resultado |
 | --- | --- |
 | Compilación de la solución | Correcta, sin advertencias ni errores en la compilación comprobada. |
-| `dotnet test tests/GuardaCat.IntegrationTests -c Release --no-restore` sobre el código actual | 32 superadas; 0 fallidas; 0 omitidas. |
+| `dotnet test tests/GuardaCat.IntegrationTests -c Release --no-build` sobre el código actual | 67 superadas; 0 fallidas; 0 omitidas. |
 | Registro y sesión por API | Registro no autentica, login emite cookie, `/api/me` responde según sesión y logout la retira. |
 | CSRF | Mutaciones de cuenta, posts, comentarios y vista previa sin token rechazadas; el token anónimo deja de servir tras login. |
 | Validación y concurrencia | Entradas inválidas rechazadas y dos registros concurrentes con el mismo email normalizado producen un alta y un conflicto. |
@@ -58,7 +60,7 @@ Revisión: 31/10/2026. Corresponde al árbol de trabajo local, con cambios todav
 | Formulario de comentarios | Tras publicar, muestra el comentario confirmado y reinicia el formulario sin una falsa validación de campo vacío. |
 | `dotnet publish src/GuardaCat.Server -c Release --no-restore` | Correcto; arranque WASM y recursos del artefacto comprobados por HTTPS y en navegador. |
 
-Las pruebas automatizadas crean y eliminan bases `guardacat_auth_tests_<guid>` y verifican que los hosts usen esas bases. La comprobación visual usó la base temporal independiente `guardacat_mvp_ui_20261031`. Se retiraron el host y los datos de prueba. PostgreSQL continúa saludable. No se han probado aquí AWS, CDN, balanceador ni despliegue con contenedores.
+Las pruebas automatizadas crean y eliminan bases `guardacat_auth_tests_<guid>` y verifican que los hosts usen esas bases. La comprobación visual usó la base temporal independiente `guardacat_mvp_ui_20261031`. Se retiraron el host y los datos de prueba. El despliegue AWS, ALB, ACM, ECS, RDS y los smoke tests públicos se validaron el 09/11/2026; CloudFront continúa fuera del stack aprobado.
 
 La base habitual `guardacat` no se ha migrado durante esta validación. Antes de ejecutar el nuevo código sobre ella se debe aplicar `dotnet ef database update --project src/GuardaCat.Server --startup-project src/GuardaCat.Server`. La migración añade Posts y Comments; no elimina tablas existentes.
 
@@ -84,19 +86,207 @@ Comando reproducible desde la raíz, con el artefacto sirviéndose en HTTPS:
 
 La interfaz se comprobó sin errores de consola en la revisión final. La paginación usa desplazamiento: el orden es determinista, pero publicaciones o eliminaciones concurrentes pueden desplazar páginas. No se ha implantado todavía caché CDN.
 
-**Siguiente paso:** validar la primera entrega de fase 3 y aplicar `TagsAndPostLikes`; después continuar con perfiles, imágenes y outbox.
+La entrega de medios se describe en la revisión del 01/11/2026 siguiente. Sus migraciones, opcionales y recorrido funcional quedaron confirmados antes de iniciar el empaquetado.
 
-## Fase 3: primera entrega pendiente de validación
+## Fase 3: opcionales completados
 
-- [ ] Tags normalizados (máximo 5 por post), edición y visualización pública.
-- [ ] Filtro público por tag con paginación y enlaces desde la portada.
-- [ ] Like único e idempotente por usuario, únicamente en posts; sin likes en comentarios ni downvotes.
-- [ ] Migración `TagsAndPostLikes`, contrato OpenAPI y pruebas de integración preparados, aún no ejecutados.
+- [x] Tags normalizados (máximo 5 por post), edición y visualización pública.
+- [x] Filtro público por tag con paginación y enlaces desde la portada.
+- [x] Like único e idempotente por usuario, únicamente en posts; sin likes en comentarios ni downvotes.
+- [x] Migración `TagsAndPostLikes`, contrato OpenAPI y pruebas incluidos en la suite de 66 pruebas superada el 01/11/2026.
+
+## Fase 3: perfiles implementados, revisión del 01/11/2026
+
+- [x] Contratos y serialización generada para nombre público y bio; límites de 2–60 y 500 caracteres respectivamente.
+- [x] Perfil público `GET /api/public/users/{id}`, sin email ni datos de Identity; edición propia mediante `GET/PUT /api/me/profile`, con autenticación, CSRF en escritura y `no-store`.
+- [x] Páginas `/users/{id}` y `/my-profile`, publicaciones paginadas por autor y enlaces desde cabecera, posts y comentarios. Tras guardar se refleja la respuesta confirmada y se refresca el nombre de la sesión.
+- [x] Reutilización de las columnas existentes; no se añade migración. Bio en texto plano, renderizada con el escape normal de Razor.
+- [x] Compilación Release de la solución, incluidos los tests: sin advertencias ni errores.
+- [x] Las seis pruebas de perfiles y la suite de regresión forman parte de las 66 pruebas superadas el 01/11/2026.
+- [x] Navegador: navegación y edición del perfil, persistencia, nombre actualizado, casos sin posts/ID inexistente y paginación confirmados por el usuario el 03/11/2026.
+- [x] Navegador: escape de HTML, diseño y ausencia de edición de perfil ajeno confirmados por el usuario el 03/11/2026.
+
+Las pruebas preparadas cubren privacidad y ausencia de cookies en lectura pública, identidad de sesión frente a IDs manipulados, preservación de campos de Identity, autenticación, CSRF, límites, borrado de bio, propagación del nombre a posts/comentarios y OpenAPI. El filtro y la paginación por autor también tienen cobertura previa en `MvpTests.cs`. Si dos sesiones editan el mismo perfil, prevalece la última escritura.
+
+## Fase 3: medios y outbox implementados, 01/11/2026
+
+- [x] Modelo/API de medios propios, avatar único y cinco imágenes por post; límites reales JPEG/PNG, decodificación y reexportación con SkiaSharp.
+- [x] Adaptadores local/S3 y captura/SES; compensación persistida antes de subir, limpieza con reintentos y retirada de referencias al borrar.
+- [x] Editor de avatar e imágenes, inserción en Markdown y validación de pertenencia en guardado/vista previa.
+- [x] Comentario y correo en una única transacción; FK única al comentario y cancelación de pendientes por cascada.
+- [x] Worker con reclamación atómica, SKIP LOCKED, lease, timeout, confirmación condicionada al token y reintentos sin descarte.
+- [x] Migraciones `MediaAndOutbox` y `CommentNotificationOwnership` generadas, sin aplicarlas a bases de datos.
+- [x] Compilación Release sin errores ni advertencias. Quince pruebas aisladas de validación de imágenes y Markdown superadas.
+- [x] Suite completa PostgreSQL ejecutada el 01/11/2026: 66 superadas, 0 fallidas, 0 omitidas (19 s). Incluye rollback real al fallar la inserción del aviso, reintentos, dos workers y lease vencido, propiedad/CSRF, compensación y sustitución concurrente. Bases temporales creadas y eliminadas por los fixtures; no se modifica `guardacat`.
+- [x] Navegador: avatar, reemplazo, eliminación, iniciales, subida/inserción/guardado de imágenes, vista previa, recarga, límites, dos usuarios y 404 de URLs eliminadas confirmados por el usuario el 03/11/2026.
+- [ ] Publicación mediante ALB/ACM validada en AWS el 09/11/2026. Quedan por validar el recorrido funcional completo con S3 y la entrega real mediante SES; el contenedor Linux y S3-compatible local pertenecen a la fase 4.
+
+El plan detallado y el enunciado de `Documentacion_Proyecto` se han contrastado. [Medios y outbox](media-and-outbox.md) registra contratos, configuración y desviaciones justificadas. La fase 3 queda cerrada; no se acredita despliegue AWS. La retirada inmediata usa el host con `no-store`; sustituye la propuesta anterior de imágenes en caché durante 24 horas.
+
+Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciertos, tres fallos): las fechas del host se comparaban con `now()` de PostgreSQL y un desfase de aproximadamente medio segundo impedía reclamar tareas recién creadas. Se unifican los plazos de cola en el reloj PostgreSQL y las tareas inmediatas se marcan ya vencidas. Verificación: tres pruebas del outbox superadas y, después, suite completa de 66 superadas. No requiere migración adicional.
+
+## Fase 4: empaquetado cerrado
+
+- [x] `Dockerfile` multi-stage con SDK 10.0.400, runtime ASP.NET Core 10.0.14, publicación conjunta Client/Server, puerto 8080 y usuario no root.
+- [x] Una misma imagen con modo web predeterminado y modo puntual `--migrate`; la web no ejecuta migraciones al arrancar.
+- [x] Compose con PostgreSQL, MinIO local, migración única, dos réplicas sin volúmenes montados y Caddy HTTPS round-robin.
+- [x] Claves de Data Protection compartidas en PostgreSQL y objetos compartidos mediante API S3-compatible, sin depender del disco efímero de las webs.
+- [x] Contratos HTTP: JSON público correcto `public, max-age=0, s-maxage=30`; errores públicos, API privada/mutaciones y `/media/*` con `no-store`; lecturas públicas sin `Set-Cookie`.
+- [x] `scripts/verify-packaging.ps1` ejecutado correctamente el 03/11/2026: migración finalizada con código 0, cookie aceptada por `web1` y `web2`, contratos de caché correctos y el mismo objeto S3-compatible leído desde ambas réplicas.
+- [x] `web1`, `web2` y `migrate` usaron el mismo identificador de imagen, usuario 1654 y cero montajes. La compilación/publish Linux Release se realizó dentro del Dockerfile.
+- [x] Durante la validación se sustituyó la imagen retirada `minio/mc` por un helper Alpine reproducible, se preparó el volumen MinIO antes de bajar a usuario no-root y se desactivó SSE-S3 solo en el sustituto local; AWS conserva cifrado por defecto.
+- [x] Suite Release repetida el 03/11/2026: 66 superadas, 0 fallidas, 0 omitidas. Detectó y permitió corregir que la renovación de cookie podía sobrescribir `private`; la política de caché se registra antes de autenticación y queda como cabecera final.
 
 ## Fases posteriores
 
-- [ ] Fase 3: validar tags/filtro y likes en posts; después perfiles, imágenes y outbox.
-- [ ] Fase 4: Dockerfile único y modos web/migración. La prueba de claves compartidas ya está cubierta, pero no completa esta fase.
-- [ ] Fases 5–7: AWS/Terraform, CI/CD, backups y restauración, alarmas, presupuesto y entrega.
+- [x] Fase 3: opcionales y validación funcional completados.
+- [x] Fase 4: implementación y validación reproducible completadas.
+- [ ] Fase 5: stack AWS, imagen, migración y servicio desplegados; pendiente completar la aceptación funcional de S3/SES y cookies entre réplicas.
+- [ ] Fase 6: CI versionada y ejecutada; CD con credenciales de GitHub Secrets preparado localmente. Pendientes cargar los Secrets, versionar el CD y acreditar un despliegue automático desde `main`.
+- [ ] Fase 7: simulacro local de restauración, alarmas, presupuesto y runbook preparados; pendientes restauración real, pruebas operativas y evidencias finales en AWS.
 
-Antes de AWS quedan además la validación de dominio/cuenta/SES, configuración de proxies y revisión de los límites por instancia. Persistir las claves de Data Protection en SQL no cifra por sí solo su XML; la protección para producción sigue el plan de seguridad.
+La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el límite global orientativo de 200 USD están confirmados. Terraform prepara un presupuesto operativo de 60 USD para avisar antes. La configuración mantiene las claves de Data Protection compartidas en PostgreSQL sin añadir un cifrador KMS específico.
+
+### Fase 5 desplegada, revisiones del 06/11/2026, 08/11/2026 y 09/11/2026
+
+- [x] Un único stack Terraform y backend S3 externo, privado, versionado, cifrado mediante SSE-S3 y con lockfile.
+- [x] VPC en dos AZ, subredes públicas para ALB/Fargate, subredes aisladas para RDS y ECR privado inmutable.
+- [x] ECS con una réplica Fargate y otra Fargate Spot, tarea puntual `--migrate`, ALB público, ACM y salidas DNS para Hostinger descritos como código.
+- [x] RDS PostgreSQL Multi-AZ con backups automáticos, S3 privado/versionado, SES/DKIM, Parameter Store seguro y CloudWatch descritos como código.
+- [x] Una única credencial PostgreSQL y TLS obligatorio; Data Protection sigue compartido mediante PostgreSQL sin KMS específico.
+- [x] Cuenta, región, dominio, SES sandbox, destinatario de demostración y presupuesto confirmados.
+- [x] Terraform 1.15.8 validado e inicializado con backend S3 remoto; proveedores fijados en `.terraform.lock.hcl`.
+- [x] Bucket del estado remoto creado con acceso público bloqueado, versionado, SSE-S3 y lockfile.
+- [x] Plan parcial DNS revisado y aplicado: tres altas, sin cambios ni destrucciones.
+- [x] CNAME de ACM y tres CNAME DKIM publicados en Hostinger con TTL 300; ACM figura `ISSUED` y las identidades SES de dominio y destinatario figuran verificadas.
+- [x] Primer plan completo revisado: 51 altas, sin cambios ni destrucciones y `service_desired_count=0`; quedó obsoleto al añadir presupuesto y alarmas y no debe aplicarse.
+- [x] Terraform formateado y validado después de añadir presupuesto mensual de 60 USD, avisos de coste, SNS y cinco alarmas de RDS/ECS/ALB.
+- [x] CI de solo lectura versionada y ejecutada en GitHub: compila, ejecuta pruebas, verifica el artefacto Release y construye la imagen sin publicarla ni usar credenciales AWS.
+- [x] Validación local del 08/11/2026: 66 pruebas superadas, packaging multiinstancia correcto, imagen UID 1654 y simulacro aislado de backup/restauración PostgreSQL correcto.
+- [x] Coste optimizado según el temario: tareas de 0,25 vCPU/512 MiB, mezcla Fargate/Spot, Container Insights desactivado, Parameter Store estándar y ciclos de vida S3/ECR acotados.
+- [x] Tamaño reducido validado localmente con dos réplicas limitadas a 0,25 vCPU/512 MiB; packaging multiinstancia superado y límites locales restaurados después.
+- [x] Credenciales renovadas y `infrastructure.tfplan` regenerado/revisado: 59 altas, sin cambios ni destrucciones, `service_desired_count=0`, SES/ACM existentes sin cambios.
+- [x] Plan regenerado y aplicado en AWS con `service_desired_count=0`; los roles IAM se adaptaron al prefijo `student-` y al `StudentBoundary` exigidos por la cuenta de laboratorio.
+- [x] Imagen publicada en ECR, tarea `--migrate` finalizada con código 0 y servicio elevado a dos tareas saludables.
+- [ ] HTTPS, backups RDS y versionado S3 validados en AWS real. Quedan el recorrido funcional S3, la entrega SES y las cookies compartidas entre réplicas.
+
+#### Evidencia del despliegue manual del 09/11/2026
+
+| Evidencia | Resultado |
+| --- | --- |
+| Revisión e imagen | Tag `0b3946ab287a`; digest ECR `sha256:6c6a048c358a49f9f63c0c7607a76ec821b7ea61fa235fd451789fa86b62c0c3`. |
+| Credencial ECR temporal | Se usó exclusivamente `.codex-tmp-ecr/config.json`; el directorio quedó eliminado tras el `push`. |
+| Migración | Tarea `61796e3f56674295878435d9aad9c755`, `STOPPED` con código `0`. |
+| ECS/ALB | `desired=2`, `running=2`, `pending=0`; rollout completado y dos targets saludables: Fargate en `eu-west-1a` y Fargate Spot en `eu-west-1b`. |
+| DNS y HTTPS | `app.guarda.cat` resuelve al ALB; `/`, `/api/health/live` y `/api/health/ready` responden `200`. |
+| Persistencia | RDS PostgreSQL 17.9 `available`, Multi-AZ, retención 7 días y punto restaurable disponible; versionado S3 habilitado. |
+| Operación | Cinco alarmas CloudWatch en `OK`, presupuesto mensual de 60 USD presente y cero eventos con `ERROR` en la primera hora consultada. |
+| Terraform | `fmt -check` y `validate` correctos; plan final con `service_desired_count=2`: sin cambios. |
+
+Las identidades SES de `guarda.cat` y del destinatario de demostración están verificadas y DKIM figura `SUCCESS`, pero no se envió un correo externo durante esta ejecución. La suscripción de correo al topic SNS continúa `PendingConfirmation` y requiere confirmar el enlace recibido en el buzón.
+
+### Fase 6: GitHub, GitHub Actions y CI/CD del curso
+
+#### Referencia del curso y adaptación a GuardaCat
+
+La referencia específica es `aws-curso.pdf`, páginas 601–613, sección **Configuración de GitHub Actions con AWS**. El curso presenta un pipeline de ejemplo para una aplicación Docker en ECS con estas piezas:
+
+1. autenticación de GitHub contra AWS mediante OpenID Connect, sin claves AWS permanentes en GitHub;
+2. proveedor `https://token.actions.githubusercontent.com`, audiencia `sts.amazonaws.com` y rol asumible mediante `sts:AssumeRoleWithWebIdentity`;
+3. confianza limitada por el claim `sub` al repositorio y, cuando se usan environments, a `staging` o `production`;
+4. política IAM específica con mínimo privilegio para ECR, ECS y los demás servicios que use realmente el pipeline;
+5. análisis estático y de seguridad antes de construir la imagen;
+6. tests y publicación de resultados o cobertura como artefactos;
+7. build y push de la imagen Docker solo después de superar las fases anteriores y únicamente en push a `main`;
+8. despliegue a ECS mediante un environment de GitHub, task definition y configuración separada por entorno;
+9. variables no sensibles configuradas en **Settings → Secrets and variables → Actions**;
+10. monitorización de jobs, steps, logs y artefactos desde la interfaz de GitHub Actions.
+
+El ejemplo del curso usa Node/npm, una etiqueta `latest` y las acciones de renderizado/despliegue directo de task definitions. GuardaCat adapta el mismo flujo con estas decisiones deliberadas:
+
+- .NET 10, PostgreSQL real, `dotnet restore`, compilación Release, pruebas de integración y verificación del artefacto publicado sustituyen a `npm install` y `npm test`;
+- la imagen se identifica mediante SHA de commit y se registra también su digest de ECR; no se despliega `latest` porque no identifica de forma inmutable los bytes ejecutados;
+- Terraform sigue siendo la fuente de verdad de la infraestructura base. Para reproducir el ejercicio del curso, el pipeline actualiza únicamente las revisiones de las task definitions y el servicio mediante las acciones oficiales de ECS. Un `terraform apply` posterior debe recibir el mismo `image_tag` desplegado para no recuperar una revisión anterior;
+- una tarea ECS puntual ejecuta `--migrate` y debe terminar con código `0` antes de actualizar el servicio web;
+- el rollout espera estabilidad y health checks HTTPS; el circuit breaker puede revertir la imagen, pero nunca revierte automáticamente el esquema;
+- para este proyecto académico basta un environment `production`, salvo que se decida crear y mantener infraestructura separada de staging.
+- para reproducir el entregable realizado durante el curso, la autenticación del job de despliegue usa `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y, cuando corresponda a la cuenta de laboratorio, `AWS_SESSION_TOKEN` almacenados como GitHub Actions Secrets. Es una excepción consciente frente al OIDC recomendado por el temario;
+- las claves nunca se escriben en el repositorio ni se imprimen. Si son credenciales temporales de AWS Academy, los Secrets permanecen configurados pero deben actualizarse cuando caduque la sesión.
+
+#### Estado actual del workflow local
+
+| Componente | Estado | Evidencia o limitación |
+| --- | --- | --- |
+| Repositorio GitHub | Parcial | Existe el repositorio público `pgimeno/guarda.cat`; falta integrar la revisión final en `main`. |
+| Workflow de CI | Ejecutado | `.github/workflows/ci.yml` está versionado y la ejecución remota de `f15953f` finalizó correctamente. |
+| Triggers | Preparado localmente | CI para PR y push a `main`; el despliegue reutilizable solo se invoca tras una validación correcta en un push a `main`. |
+| Entorno de pruebas | Preparado | Runner Ubuntu y PostgreSQL 17 como service container saludable en el puerto 5433. |
+| SDK y compilación | Preparado | `actions/setup-dotnet` usa `global.json`; se restauran y compilan la solución y los tests en Release. |
+| Tests | Ejecutado | Ejecuta integración contra PostgreSQL, genera TRX y la ejecución remota conservó el artefacto. |
+| Artefacto Release | Preparado | Publica el servidor y ejecuta `scripts/verify-release.ps1`. |
+| Imagen Docker | Preparado sin publicación | Construye `guardacat:${GITHUB_SHA}` y comprueba que el runtime use UID 1654. |
+| Artefactos CI | Parcial | Sube TRX durante 14 días; no conserva todavía digest de imagen, plan Terraform ni manifiesto de despliegue. |
+| Terraform en CI | Preparado localmente | Ejecuta `terraform fmt -check`, `terraform init -backend=false` y `terraform validate` sin credenciales AWS. |
+| Análisis de seguridad | Pendiente | No hay auditoría de dependencias, búsqueda de secretos ni análisis específico de Docker/Terraform. Debe adaptarse al stack .NET sin copiar literalmente `npm audit`. |
+| Credenciales GitHub→AWS | Configuradas | El repositorio contiene los tres GitHub Secrets cifrados; no se usa OIDC para este entregable. Al proceder de IAM Identity Center, deben renovarse cuando caduque la sesión. |
+| Publicación ECR | Preparada localmente | Publica una etiqueta inmutable con el SHA completo y registra el digest. Falta la primera ejecución remota. |
+| Migración y despliegue ECS | Preparado localmente | Ejecuta una tarea `--migrate`, bloquea el rollout hasta que termine, actualiza ECS a dos tareas, espera estabilidad y prueba salud. Falta la primera ejecución remota. |
+| Evidencia GitHub | Pendiente | No existe URL de ejecución, check de PR, deployment de environment ni registro del SHA desplegado. |
+
+#### Diseño objetivo del pipeline
+
+| Etapa | Trigger y credenciales | Trabajo mínimo | Puerta de aceptación |
+| --- | --- | --- | --- |
+| Validación | PR, push y ejecución manual; sin AWS | Checkout, SDK fijado, restore, build Release, tests PostgreSQL, artefacto Release, imagen Docker, UID no-root y Terraform fmt/validate. | Todos los jobs verdes y resultados TRX descargables. |
+| Análisis | PR y push; sin AWS | Analizadores del compilador, dependencias vulnerables, secretos y revisión de configuración Docker/Terraform con herramientas mantenidas y fijadas. | Un hallazgo bloqueante hace fallar el workflow; no se imprimen secretos. |
+| Autenticación | Solo push a `main`, después de superar la CI | Configurar AWS mediante los Secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y el token de sesión opcional. | STS valida la identidad; las claves no aparecen en código, artefactos ni logs. |
+| Build y publicación | Solo después de validación y autenticación AWS | Construir una vez, etiquetar con SHA completo o corto acordado, publicar en ECR inmutable y capturar el digest. | La etiqueta corresponde al commit y el digest desplegado queda como output/artefacto. |
+| Preparación ECS | Job de despliegue `production` | Descargar las task definitions vigentes, sustituir únicamente la imagen y registrar revisiones nuevas mediante las acciones oficiales de ECS. | Las task definitions referencian el SHA inmutable y conservan la configuración creada por Terraform. |
+| Migración | Después de publicar la imagen, antes del rollout | Ejecutar exactamente una tarea ECS del mismo artefacto con `--migrate`; esperar fin y leer exit code/logs. | Código `0`; cualquier fallo detiene el despliegue y mantiene la revisión web anterior. |
+| Rollout | Solo tras migración correcta | Elevar o actualizar ECS a dos tareas, esperar servicio estable y comprobar `/api/health/live`, `/api/health/ready` y HTTPS público. | Dos tareas saludables, sin rollout fallido y smoke test correcto. |
+| Evidencias y rollback | Siempre, especialmente tras fallo | Conservar SHA, digest, revisión de task definition, plan, migración, health checks y enlace de la ejecución. Permitir volver a una imagen compatible conocida. | La ejecución explica qué se desplegó; un rollback no intenta revertir automáticamente la base de datos. |
+
+#### GitHub, credenciales del curso y mínimo privilegio
+
+- [ ] Versionar los workflows y comprobar que GitHub Actions está habilitado en el repositorio.
+- [ ] Configurar checks obligatorios de CI antes de integrar cambios en `main`.
+- [x] Preparar autenticación mediante GitHub Actions Secrets, sin copiar credenciales al workflow ni al historial Git.
+- [x] Cargar `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN` procedentes de IAM Identity Center en el repositorio; deben rotarse cuando caduque la sesión.
+- [ ] Confirmar que la identidad usada tiene únicamente las acciones necesarias sobre ECR, ECS, `iam:PassRole` y los recursos desplegados. No usar credenciales root.
+- [x] Declarar `contents: read` como único permiso del workflow; no solicitar `id-token: write` porque este entregable no usa OIDC.
+- [x] Configurar región, repositorio ECR, clúster, servicio y dominio como valores no sensibles del workflow. Los secretos de aplicación permanecen en Parameter Store/AWS, no en GitHub.
+- [x] Crear el environment `production`, restringido a `main` y sin aprobación manual para que el camino ordinario sea el despliegue iniciado por push exigido por el entregable.
+- [x] Definir concurrencia única para `production`, con despliegues en cola y sin cancelar una migración o rollout en curso.
+
+#### Criterios de aceptación de fase 6
+
+- [ ] Una pull request ejecuta validación completa sin obtener credenciales AWS y publica un check verificable.
+- [ ] Un fallo de compilación, test, análisis o validación Terraform impide publicar y desplegar.
+- [ ] Un push de una revisión limpia a `main` publica en ECR exactamente la imagen de ese commit mediante los GitHub Actions Secrets configurados.
+- [ ] La ejecución registra SHA y digest; ninguna task definition de producción usa `latest`.
+- [ ] Solo una tarea `--migrate` se ejecuta por despliegue y su código distinto de cero bloquea el rollout.
+- [ ] Tras una migración correcta, ECS mantiene dos tareas saludables y GitHub espera estabilidad antes de finalizar correctamente.
+- [ ] Los health checks y una lectura pública HTTPS se ejecutan después del rollout.
+- [ ] Un despliegue fallido conserva o recupera la última imagen compatible sin ocultar el fallo del workflow.
+- [ ] GitHub conserva los resultados de tests y la evidencia suficiente para relacionar commit, imagen, migración y revisión ECS.
+- [ ] `docs/acceptance.md` registra la URL de la ejecución final, fecha, commit, digest, duración, resultado de migración y resultado de los smoke tests.
+
+### Fase 7: operación y entrega
+
+- [x] Runbook local de despliegue, rollback, parada de costes y recuperación documentado.
+- [x] Simulacro aislado de backup/restauración PostgreSQL ejecutado localmente.
+- [x] Presupuesto, SNS y cinco alarmas descritos en Terraform.
+- [ ] Confirmar la suscripción SNS y demostrar al menos una notificación real de alarma.
+- [ ] Confirmar presupuesto y avisos en la cuenta AWS; registrar que no detienen gasto automáticamente.
+- [ ] Restaurar RDS/PITR a una instancia temporal, verificar datos y eliminar los recursos temporales después de conservar la evidencia.
+- [ ] Recuperar una versión de un objeto S3 y comprobar su correspondencia con los metadatos SQL restaurados.
+- [ ] Resolver formalmente si S3 tendrá AWS Backup además de versionado; el estado actual no cumple el backup independiente previsto en el plan original.
+- [ ] Resolver formalmente si se incorpora CloudFront o se aprueba su exclusión y el coste/rendimiento de servir `/media/*` mediante ALB/ECS.
+- [ ] Consolidar la estimación de costes, instrucciones reproducibles, evidencias, limitaciones y procedimiento de destrucción en el README final.
+
+### Decisiones de alcance que bloquean el cierre completo
+
+- [ ] **Imágenes:** aprobar el contrato definitivo. El plan inicial preveía hasta cinco imágenes propias en S3; el árbol actual permite una imagen al crear, desde archivo o URL HTTP/HTTPS, y no permite añadir otra al editar. Las pruebas y documentos deben describir una sola versión del contrato.
+- [ ] **CloudFront:** reintroducir CDN/OAC o aprobar expresamente la arquitectura sin CDN. La exclusión actual simplifica la retirada inmediata, pero se desvía del plan de fase 5 y de la extensión S3 + CDN del enunciado.
+- [ ] **Backup S3:** añadir AWS Backup y una restauración real, o aprobar expresamente que el versionado con expiración a 30 días es una protección reducida y no un backup independiente.
+- [ ] **Alta disponibilidad:** demostrar dos tareas en AZ distintas y continuidad real con la mezcla Fargate/Fargate Spot, o volver a dos tareas On-Demand para la aceptación final.

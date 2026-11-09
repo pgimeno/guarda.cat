@@ -1,0 +1,15 @@
+{
+	admin off
+}
+
+https://localhost {
+	tls internal
+	encode zstd gzip
+	reverse_proxy web1:8080 web2:8080 {
+		lb_policy round_robin
+		health_uri /api/health/live
+		health_headers {
+			Host localhost
+		}
+	}
+}

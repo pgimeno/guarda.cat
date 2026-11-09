@@ -6,7 +6,7 @@
 <div class="session-menu">
     <AuthorizeView>
         <Authorized>
-            <span class="session-name" title="@context.User.Identity?.Name">@context.User.Identity?.Name</span>
+            <a href="/my-profile" class="session-name" title="El meu perfil">@context.User.Identity?.Name</a>
             <button type="button" class="session-link" @onclick="LogoutAsync" disabled="@busy">Surt</button>
         </Authorized>
         <NotAuthorized>

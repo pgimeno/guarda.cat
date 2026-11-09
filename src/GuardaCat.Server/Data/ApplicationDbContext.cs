@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using GuardaCat.Server.Features.Posts;
 using GuardaCat.Server.Features.Comments;
+using GuardaCat.Server.Features.Media;
+using GuardaCat.Server.Features.Outbox;
 
 namespace GuardaCat.Server.Data;
 
@@ -19,10 +21,34 @@ public sealed class ApplicationDbContext(
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<PostTag> PostTags => Set<PostTag>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
+    public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<MediaAsset>(media =>
+        {
+            media.Property(value => value.ObjectKey).HasMaxLength(32).IsRequired();
+            media.Property(value => value.ContentType).HasMaxLength(10).IsRequired();
+            media.HasOne<ApplicationUser>().WithMany().HasForeignKey(value => value.OwnerId).OnDelete(DeleteBehavior.Restrict);
+            media.HasOne<Post>().WithMany().HasForeignKey(value => value.PostId).OnDelete(DeleteBehavior.Restrict);
+            media.HasIndex(value => value.ObjectKey).IsUnique();
+            media.HasIndex(value => value.OwnerId).IsUnique().HasFilter("\"PostId\" IS NULL");
+            media.HasIndex(value => new { value.PostId, value.CreatedAtUtc, value.Id });
+        });
+        builder.Entity<OutboxMessage>(message =>
+        {
+            message.HasOne<Comment>().WithMany().HasForeignKey(value => value.CommentId).OnDelete(DeleteBehavior.Cascade);
+            message.HasIndex(value => value.CommentId).IsUnique();
+            message.Property(value => value.Kind).HasMaxLength(20).IsRequired();
+            message.Property(value => value.ObjectKey).HasMaxLength(32);
+            message.Property(value => value.Recipient).HasMaxLength(256);
+            message.Property(value => value.Subject).HasMaxLength(200);
+            message.Property(value => value.Body).HasMaxLength(4000);
+            message.HasIndex(value => new { value.AvailableAtUtc, value.Id });
+        });
 
         builder.Entity<Post>(post =>
         {

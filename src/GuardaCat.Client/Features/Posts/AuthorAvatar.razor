@@ -1,0 +1,36 @@
+<span class="author-avatar" aria-hidden="true">
+    @if (!string.IsNullOrWhiteSpace(Avatar?.Url) && !imageFailed)
+    {
+        <img @key="Avatar.Url" src="@Avatar.Url" alt="" width="22" height="22" loading="lazy"
+             @onerror="() => imageFailed = true" />
+    }
+    else
+    {
+        <span>@Initials</span>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public MediaResponse? Avatar { get; set; }
+    private string? imageUrl;
+    private bool imageFailed;
+
+    private string Initials
+    {
+        get
+        {
+            var parts = Name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            return (parts.Length > 1
+                ? string.Concat(parts.Take(2).Select(part => part[0]))
+                : new string(Name.Trim().Take(2).ToArray())).ToUpperInvariant();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (imageUrl == Avatar?.Url) return;
+        imageUrl = Avatar?.Url;
+        imageFailed = false;
+    }
+}

@@ -1,0 +1,199 @@
+name: Deploy AWS (Reusable)
+
+on:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  ECR_REPOSITORY: guardacat-prod
+  ECS_CLUSTER: guardacat-prod
+  ECS_SERVICE: guardacat-prod-web
+  ECS_WEB_TASK_FAMILY: guardacat-prod-web
+  ECS_MIGRATION_TASK_FAMILY: guardacat-prod-migration
+  ECS_CONTAINER: guardacat
+  APPLICATION_URL: https://app.guarda.cat
+
+concurrency:
+  group: guardacat-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publish and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://app.guarda.cat
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Verify AWS identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity --query Arn --output text
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and publish immutable image
+        id: image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Download current ECS task definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_MIGRATION_TASK_FAMILY" \
+            --query taskDefinition \
+            > migration-task-definition.json
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_WEB_TASK_FAMILY" \
+            --query taskDefinition \
+            > web-task-definition.json
+
+      - name: Render migration task definition
+        id: migration-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: migration-task-definition.json
+          container-name: ${{ env.ECS_CONTAINER }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Read migration network configuration
+        id: network
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBNETS=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
+            --output text | tr '\t' ',')
+          SECURITY_GROUPS=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
+            --output text | tr '\t' ',')
+          test -n "$SUBNETS"
+          test -n "$SECURITY_GROUPS"
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          echo "security-groups=$SECURITY_GROUPS" >> "$GITHUB_OUTPUT"
+
+      - name: Run database migration
+        id: migration
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.migration-task.outputs.task-definition }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          run-task: true
+          run-task-launch-type: FARGATE
+          run-task-subnets: ${{ steps.network.outputs.subnets }}
+          run-task-security-groups: ${{ steps.network.outputs.security-groups }}
+          run-task-assign-public-IP: ENABLED
+          run-task-started-by: github-${{ github.run_id }}
+          wait-for-task-stopped: true
+          wait-max-delay-seconds: 15
+
+      - name: Render web task definition
+        id: web-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: web-task-definition.json
+          container-name: ${{ env.ECS_CONTAINER }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Deploy web service
+        id: web-deploy
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.web-task.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          desired-count: 2
+          wait-for-service-stability: true
+          wait-max-delay-seconds: 15
+          enable-ecs-managed-tags: true
+          propagate-tags: SERVICE
+
+      - name: Smoke test production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /api/health/live /api/health/ready /; do
+            passed=false
+            for attempt in {1..12}; do
+              status=$(curl --silent --show-error --location \
+                --output /dev/null --write-out '%{http_code}' \
+                "$APPLICATION_URL$path" || true)
+              if [ "$status" = "200" ]; then
+                passed=true
+                break
+              fi
+              echo "Attempt $attempt/12 for $path returned HTTP $status"
+              sleep 5
+            done
+            if [ "$passed" != "true" ]; then
+              echo "Smoke test failed for $path"
+              exit 1
+            fi
+          done
+
+      - name: Record deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg commit "$GITHUB_SHA" \
+            --arg image "${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:$GITHUB_SHA" \
+            --arg digest "${{ steps.image.outputs.digest }}" \
+            --arg migrationTaskDefinition "${{ steps.migration.outputs.task-definition-arn }}" \
+            --arg webTaskDefinition "${{ steps.web-deploy.outputs.task-definition-arn }}" \
+            --arg runUrl "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{commit: $commit, image: $image, digest: $digest, migrationTaskDefinition: $migrationTaskDefinition, webTaskDefinition: $webTaskDefinition, runUrl: $runUrl}' \
+            > deployment-evidence.json
+          {
+            echo "### Production deployment"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Image digest: \`${{ steps.image.outputs.digest }}\`"
+            echo "- Migration task: \`${{ steps.migration.outputs.task-definition-arn }}\`"
+            echo "- Web task: \`${{ steps.web-deploy.outputs.task-definition-arn }}\`"
+            echo "- URL: $APPLICATION_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-${{ github.sha }}
+          path: deployment-evidence.json
+          retention-days: 30
