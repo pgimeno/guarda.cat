@@ -1,0 +1,35 @@
+@implements IDisposable
+@inject ProfilesClient Profiles
+
+@if (users.Count > 0)
+{
+    <section class="active-users" aria-labelledby="active-users-title">
+        <h2 id="active-users-title">Usuaris més actius avui</h2>
+        <div class="active-users-row" role="list">
+            @foreach (var user in users)
+            {
+                <a @key="user.Id" class="active-user-link" role="listitem" href="@($"/users/{user.Id}")"
+                   title="@user.DisplayName" aria-label="@($"Veure el perfil de {user.DisplayName}")">
+                    <AuthorAvatar Name="@user.DisplayName" Avatar="@user.Avatar" />
+                </a>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource cancellation = new();
+    private List<ActiveUserResponse> users = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Profiles.ActiveTodayAsync(cancellation.Token);
+        if (!cancellation.IsCancellationRequested) users = result.Value ?? [];
+    }
+
+    public void Dispose()
+    {
+        cancellation.Cancel();
+        cancellation.Dispose();
+    }
+}

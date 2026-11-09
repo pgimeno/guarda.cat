@@ -8,7 +8,14 @@
     </div>
     @if (loading)
     {
-        <p class="feed-message" role="status">Carregant publicacions…</p>
+        <div class="feed-loading" role="status" aria-label="Carregant publicacions">
+            <span class="feed-loading-avatar" aria-hidden="true"></span>
+            <span class="feed-loading-lines" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+        </div>
     }
     else if (error is not null)
     {
@@ -18,7 +25,16 @@
     {
         @if (data.Items.Count == 0)
         {
-            <div class="empty-feed"><h2>Encara no hi ha publicacions</h2><p>Les converses de la comunitat apareixeran aquí.</p></div>
+            <div class="empty-feed">
+                <span class="empty-feed-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M6.5 5.5h11a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H11l-4.5 3v-3A1.5 1.5 0 0 1 5 14V7a1.5 1.5 0 0 1 1.5-1.5Z" />
+                        <path d="M8.5 9.5h7M8.5 12.5h4.5" />
+                    </svg>
+                </span>
+                <h2>Encara no hi ha publicacions</h2>
+                <p>La primera conversa que s'obri apareixerà aquí.</p>
+            </div>
         }
         @foreach (var post in data.Items)
         {
@@ -50,8 +66,18 @@
                     </div>
                 }
                 <div class="post-stats">
-                    <a class="post-meta" href="@($"/posts/{post.Id}#comments")">@post.CommentCount comentaris</a>
-                    <span class="post-meta">@post.LikeCount m'agrada</span>
+                    <a class="post-metric" href="@($"/posts/{post.Id}#comments")">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M5.5 6.5h13a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H11l-4.5 3v-3h-1A1.5 1.5 0 0 1 4 15V8a1.5 1.5 0 0 1 1.5-1.5Z" />
+                        </svg>
+                        <span>@post.CommentCount @(post.CommentCount == 1 ? "comentari" : "comentaris")</span>
+                    </a>
+                    <span class="post-metric">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M12 19.5S4.5 15.4 4.5 9.4A3.9 3.9 0 0 1 12 7.9a3.9 3.9 0 0 1 7.5 1.5c0 6-7.5 10.1-7.5 10.1Z" />
+                        </svg>
+                        <span>@post.LikeCount m'agrada</span>
+                    </span>
                 </div>
             </article>
         }
