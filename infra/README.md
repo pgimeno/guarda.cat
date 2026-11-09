@@ -1,15 +1,16 @@
 # Fase 5 - AWS e infraestructura como código
 
-La fase 5 usa un único stack de Terraform en `infra/` y un único estado remoto. El alcance se limita a VPC, ALB, ACM, ECS Fargate, ECR, RDS PostgreSQL, S3, Secrets Manager, SES y CloudWatch. No incluye CloudFront, Route 53, AWS Backup ni claves KMS administradas por el proyecto.
+La fase 5 usa un único stack de Terraform en `infra/` y un único estado remoto. El alcance se limita a VPC, ALB, ACM, ECS Fargate, ECR, RDS PostgreSQL, S3, Parameter Store, SES, CloudWatch, SNS y AWS Budgets. No incluye CloudFront, Route 53, AWS Backup ni claves KMS administradas por el proyecto.
 
-Ningún comando de despliegue de este documento se ha ejecutado contra AWS. La configuración prevista es:
+El bootstrap se ejecutó el 06/11/2026: backend S3 inicializado, plan parcial DNS aplicado, cuatro CNAME publicados en Hostinger, ACM `ISSUED` e identidades SES verificadas. El stack de aplicación aún no se ha aplicado. La configuración es:
 
 - cuenta de estudiante `245324546838`, perfil `245324546838_StudentLabAccess`;
 - región `eu-west-1`;
 - aplicación `app.guarda.cat`, con DNS administrado en Hostinger;
 - remitente `no-reply@guarda.cat` y SES en sandbox;
 - destinatario de demostración configurado mediante `ses_demo_recipient`;
-- presupuesto orientativo de 200 USD y recursos conservados después de la demo.
+- presupuesto Terraform de 60 USD, con aviso previsto al 80 % y real al 100 %;
+- recursos conservados después de la demo.
 
 ## Estado remoto
 
@@ -56,13 +57,16 @@ Copia en Hostinger el CNAME de ACM y los tres CNAME DKIM de SES. El destinatario
 
 ## Infraestructura y publicación de la imagen
 
-El primer despliegue completo mantiene ECS detenido hasta aplicar las migraciones:
+El primer despliegue completo mantiene ECS detenido hasta aplicar las migraciones. Las credenciales temporales deben estar vigentes y el plan debe regenerarse después de cualquier cambio de Terraform:
 
 ```powershell
 terraform plan -var "service_desired_count=0" -out infrastructure.tfplan
+terraform show infrastructure.tfplan
 terraform apply infrastructure.tfplan
 terraform output hostinger_application_record
 ```
+
+El plan `infrastructure.tfplan` se regeneró el 08/11/2026 después de renovar la sesión y optimizar costes: 59 altas, sin cambios ni destrucciones y con `service_desired_count=0`. Solo es aplicable mientras no cambien la configuración ni el estado remoto; debe volver a generarse si cualquiera de ellos cambia.
 
 Copia también en Hostinger el CNAME `app.guarda.cat` devuelto por `hostinger_application_record`.
 
@@ -99,11 +103,15 @@ terraform apply service.tfplan
 
 - ALB es el punto público y redirige HTTP a HTTPS; ACM valida `app.guarda.cat` mediante Hostinger.
 - RDS es privado, Multi-AZ, cifra el almacenamiento, fuerza TLS y conserva backups automáticos durante siete días.
-- Una única credencial de PostgreSQL sirve a la tarea `--migrate` y a la aplicación. Secrets Manager la inyecta en ECS.
+- Una única credencial de PostgreSQL sirve a la tarea `--migrate` y a la aplicación. Parameter Store la guarda como `SecureString` estándar y ECS la inyecta sin rotación automática.
 - Las dos tareas comparten las claves de ASP.NET Core Data Protection mediante PostgreSQL. No se añade un cifrador KMS específico para su XML.
-- S3 es privado, versionado y cifrado mediante SSE-S3. El versionado sustituye al backup adicional de AWS Backup en esta fase.
+- S3 es privado, versionado y cifrado mediante SSE-S3. El versionado sustituye al backup adicional de AWS Backup en esta fase y las versiones no actuales caducan a los 30 días.
 - SES verifica `guarda.cat` mediante DKIM. Mientras continúe en sandbox, solo se envía al destinatario verificado de la demostración.
 - Las tareas Fargate usan subredes públicas e IP pública para evitar NAT Gateway; su Security Group solo admite entrada desde el ALB.
+- Cada tarea reserva 0,25 vCPU y 512 MiB. Con dos réplicas, una usa Fargate normal y la otra Fargate Spot; una interrupción Spot mantiene una réplica normal y ECS reintenta la segunda.
+- Container Insights queda desactivado; se conservan logs de 30 días, métricas estándar y cinco alarmas. ECR elimina imágenes sin etiqueta a los 14 días y conserva las cinco imágenes más recientes.
+- AWS Budgets avisa por correo al alcanzar el 80 % previsto o el 100 % real de 60 USD; el presupuesto no detiene recursos.
+- SNS envía los cambios de estado de cinco alarmas: CPU y almacenamiento de RDS, CPU de ECS, targets no saludables y respuestas 5xx del ALB. Tras el apply hay que confirmar por correo la suscripción SNS.
 
 ## Aceptación en AWS
 
@@ -116,5 +124,6 @@ Tras desplegar deben comprobarse:
 5. correo real recibido mediante SES;
 6. HTTPS válido en `app.guarda.cat`;
 7. backups automáticos de RDS y versionado de S3 habilitados.
+8. suscripción SNS confirmada, presupuesto visible y cinco alarmas con datos o estado esperado.
 
-La cuenta debe vigilarse después de la demo: RDS Multi-AZ y dos tareas Fargate generan coste continuo aunque no haya tráfico. La protección contra borrado queda activada porque el profesor retirará la infraestructura al finalizar.
+La cuenta debe vigilarse después de la demo: RDS Multi-AZ, ALB, IPv4 y dos tareas Fargate generan coste continuo aunque no haya tráfico. Con ECS detenido se estiman unos 56–60 USD mensuales antes de impuestos; con dos tareas, unos 75–82 USD según el descuento Spot, antes de tráfico, logs o alarmas fuera de la capa gratuita. La protección contra borrado queda activada porque el profesor retirará la infraestructura al finalizar. El procedimiento completo está en el [runbook de despliegue](../docs/aws-deployment-runbook.md).

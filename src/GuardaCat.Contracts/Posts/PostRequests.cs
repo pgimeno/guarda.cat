@@ -14,6 +14,9 @@ public sealed class SavePostRequest
 
     [MaxLength(5, ErrorMessage = "Pots indicar un màxim de 5 etiquetes.")]
     public List<string> Tags { get; set; } = [];
+
+    [StringLength(2_048, ErrorMessage = "L'enllaç de la imatge és massa llarg.")]
+    public string? ImageUrl { get; set; }
 }
 
 public sealed class PreviewRequest
@@ -22,6 +25,9 @@ public sealed class PreviewRequest
     [Required(ErrorMessage = "Escriu el contingut.")]
     [StringLength(50_000, ErrorMessage = "El contingut no pot superar els 50.000 caràcters.")]
     public string BodyMarkdown { get; set; } = string.Empty;
+
+    [StringLength(2_048, ErrorMessage = "L'enllaç de la imatge és massa llarg.")]
+    public string? ImageUrl { get; set; }
 }
 
 public sealed class CreateCommentRequest

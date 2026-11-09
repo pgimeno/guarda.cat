@@ -1,6 +1,8 @@
 # Estado y evidencias de aceptación
 
-Revisión: 03/11/2026. Corresponde al árbol de trabajo local, con cambios todavía sin commit. No acredita despliegue ni recursos en AWS. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
+Revisión inicial: 03/11/2026. Última actualización: 09/11/2026. Corresponde al árbol de trabajo local, con cambios todavía sin commit. No acredita el despliegue del stack de aplicación en AWS ni una ejecución remota de GitHub Actions. La validación funcional de fase 3 en navegador fue confirmada por el usuario el 03/11/2026.
+
+Las evidencias de 66 pruebas registradas el 08/11/2026 pertenecen a la revisión ejecutada ese día. El árbol actual incorpora cambios posteriores en el flujo de imágenes al crear publicaciones y un workflow de CI todavía no versionado; ambos requieren una nueva ejecución completa antes de atribuirles aquella evidencia.
 
 ## Alcance acordado
 
@@ -139,20 +141,135 @@ Corrección del 01/11/2026 tras la ejecución aportada por el usuario (63 aciert
 
 - [x] Fase 3: opcionales y validación funcional completados.
 - [x] Fase 4: implementación y validación reproducible completadas.
-- [ ] Fase 5: IaC AWS preparada, pendiente de `plan/apply`, migración puntual y aceptación en la cuenta real.
-- [ ] Fases 6–7: CI/CD, simulacro de restauración, alarmas, presupuesto y entrega.
+- [ ] Fase 5: bootstrap AWS completado; pendientes regenerar/aplicar el plan completo, la migración puntual y la aceptación en la cuenta real.
+- [ ] Fase 6: workflow de CI preparado solo en el árbol local; pendientes versionarlo, ejecutarlo en GitHub, añadir OIDC y desplegar automáticamente a AWS al hacer push a `main`.
+- [ ] Fase 7: simulacro local de restauración, alarmas, presupuesto y runbook preparados; pendientes restauración real, pruebas operativas y evidencias finales en AWS.
 
-La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el presupuesto orientativo de 200 USD están confirmados. La configuración mantiene las claves de Data Protection compartidas en PostgreSQL sin añadir un cifrador KMS específico.
+La cuenta de estudiante, `eu-west-1`, el dominio en Hostinger, SES sandbox y el límite global orientativo de 200 USD están confirmados. Terraform prepara un presupuesto operativo de 60 USD para avisar antes. La configuración mantiene las claves de Data Protection compartidas en PostgreSQL sin añadir un cifrador KMS específico.
 
-### Fase 5 preparada, pendiente de ejecución
+### Fase 5 iniciada, revisiones del 06/11/2026 y 08/11/2026
 
 - [x] Un único stack Terraform y backend S3 externo, privado, versionado, cifrado mediante SSE-S3 y con lockfile.
 - [x] VPC en dos AZ, subredes públicas para ALB/Fargate, subredes aisladas para RDS y ECR privado inmutable.
-- [x] ECS Fargate, tarea puntual `--migrate`, ALB público, ACM y salidas DNS para Hostinger descritos como código.
-- [x] RDS PostgreSQL Multi-AZ con backups automáticos, S3 privado/versionado, SES/DKIM, Secrets Manager y CloudWatch descritos como código.
+- [x] ECS con una réplica Fargate y otra Fargate Spot, tarea puntual `--migrate`, ALB público, ACM y salidas DNS para Hostinger descritos como código.
+- [x] RDS PostgreSQL Multi-AZ con backups automáticos, S3 privado/versionado, SES/DKIM, Parameter Store seguro y CloudWatch descritos como código.
 - [x] Una única credencial PostgreSQL y TLS obligatorio; Data Protection sigue compartido mediante PostgreSQL sin KMS específico.
 - [x] Cuenta, región, dominio, SES sandbox, destinatario de demostración y presupuesto confirmados.
-- [x] Terraform 1.15.8 inicializado sin backend y validado localmente; proveedores fijados en `.terraform.lock.hcl`.
-- [ ] Plan revisado y stack aplicado en AWS.
+- [x] Terraform 1.15.8 validado e inicializado con backend S3 remoto; proveedores fijados en `.terraform.lock.hcl`.
+- [x] Bucket del estado remoto creado con acceso público bloqueado, versionado, SSE-S3 y lockfile.
+- [x] Plan parcial DNS revisado y aplicado: tres altas, sin cambios ni destrucciones.
+- [x] CNAME de ACM y tres CNAME DKIM publicados en Hostinger con TTL 300; ACM figura `ISSUED` y las identidades SES de dominio y destinatario figuran verificadas.
+- [x] Primer plan completo revisado: 51 altas, sin cambios ni destrucciones y `service_desired_count=0`; quedó obsoleto al añadir presupuesto y alarmas y no debe aplicarse.
+- [x] Terraform formateado y validado después de añadir presupuesto mensual de 60 USD, avisos de coste, SNS y cinco alarmas de RDS/ECS/ALB.
+- [x] CI de solo lectura preparado localmente: compila, ejecuta pruebas, verifica el artefacto Release y construye la imagen sin publicarla ni usar credenciales AWS. `.github/workflows/ci.yml` aún no está versionado y no acredita una ejecución en GitHub.
+- [x] Validación local del 08/11/2026: 66 pruebas superadas, packaging multiinstancia correcto, imagen UID 1654 y simulacro aislado de backup/restauración PostgreSQL correcto.
+- [x] Coste optimizado según el temario: tareas de 0,25 vCPU/512 MiB, mezcla Fargate/Spot, Container Insights desactivado, Parameter Store estándar y ciclos de vida S3/ECR acotados.
+- [x] Tamaño reducido validado localmente con dos réplicas limitadas a 0,25 vCPU/512 MiB; packaging multiinstancia superado y límites locales restaurados después.
+- [x] Credenciales renovadas y `infrastructure.tfplan` regenerado/revisado: 59 altas, sin cambios ni destrucciones, `service_desired_count=0`, SES/ACM existentes sin cambios.
+- [ ] Aplicar el plan aprobado en AWS con `service_desired_count=0`.
 - [ ] Imagen publicada en ECR, tarea `--migrate` finalizada con código 0 y servicio elevado a dos tareas saludables.
-- [ ] S3, SES, cookies compartidas, HTTPS, backups RDS y versionado S3 validados en AWS real.
+- [ ] S3, envío SES, cookies compartidas, HTTPS, backups RDS y versionado S3 validados en AWS real.
+
+### Fase 6: GitHub, GitHub Actions y CI/CD del curso
+
+#### Referencia del curso y adaptación a GuardaCat
+
+La referencia específica es `aws-curso.pdf`, páginas 601–613, sección **Configuración de GitHub Actions con AWS**. El curso presenta un pipeline de ejemplo para una aplicación Docker en ECS con estas piezas:
+
+1. autenticación de GitHub contra AWS mediante OpenID Connect, sin claves AWS permanentes en GitHub;
+2. proveedor `https://token.actions.githubusercontent.com`, audiencia `sts.amazonaws.com` y rol asumible mediante `sts:AssumeRoleWithWebIdentity`;
+3. confianza limitada por el claim `sub` al repositorio y, cuando se usan environments, a `staging` o `production`;
+4. política IAM específica con mínimo privilegio para ECR, ECS y los demás servicios que use realmente el pipeline;
+5. análisis estático y de seguridad antes de construir la imagen;
+6. tests y publicación de resultados o cobertura como artefactos;
+7. build y push de la imagen Docker solo después de superar las fases anteriores y únicamente en push a `main`;
+8. despliegue a ECS mediante un environment de GitHub, task definition y configuración separada por entorno;
+9. variables no sensibles configuradas en **Settings → Secrets and variables → Actions**;
+10. monitorización de jobs, steps, logs y artefactos desde la interfaz de GitHub Actions.
+
+El ejemplo del curso usa Node/npm, una etiqueta `latest` y las acciones de renderizado/despliegue directo de task definitions. GuardaCat adapta el mismo flujo con estas decisiones deliberadas:
+
+- .NET 10, PostgreSQL real, `dotnet restore`, compilación Release, pruebas de integración y verificación del artefacto publicado sustituyen a `npm install` y `npm test`;
+- la imagen se identifica mediante SHA de commit y se registra también su digest de ECR; no se despliega `latest` porque no identifica de forma inmutable los bytes ejecutados;
+- Terraform sigue siendo la fuente de verdad de la task definition y de la imagen del servicio. El pipeline no debe actualizar ECS por una segunda vía que Terraform revierta después;
+- una tarea ECS puntual ejecuta `--migrate` y debe terminar con código `0` antes de actualizar el servicio web;
+- el rollout espera estabilidad y health checks HTTPS; el circuit breaker puede revertir la imagen, pero nunca revierte automáticamente el esquema;
+- para este proyecto académico basta un environment `production`, salvo que se decida crear y mantener infraestructura separada de staging.
+
+#### Estado actual del workflow local
+
+| Componente | Estado | Evidencia o limitación |
+| --- | --- | --- |
+| Repositorio GitHub | Parcial | Existe el remoto `origin` de GitHub, pero falta acreditar que el repositorio y el historial final cumplen la entrega pública. |
+| Workflow de CI | Preparado localmente | `.github/workflows/ci.yml` existe, pero está sin seguimiento Git y todavía no puede ejecutarse en GitHub. |
+| Triggers | Parcial | Declara `push`, `pull_request` y `workflow_dispatch`; no existe aún un job de despliegue restringido a `main`. |
+| Entorno de pruebas | Preparado | Runner Ubuntu y PostgreSQL 17 como service container saludable en el puerto 5433. |
+| SDK y compilación | Preparado | `actions/setup-dotnet` usa `global.json`; se restauran y compilan la solución y los tests en Release. |
+| Tests | Preparado localmente | Ejecuta integración contra PostgreSQL y genera TRX; falta una ejecución remota y publicar una evidencia enlazable del resultado. |
+| Artefacto Release | Preparado | Publica el servidor y ejecuta `scripts/verify-release.ps1`. |
+| Imagen Docker | Preparado sin publicación | Construye `guardacat:${GITHUB_SHA}` y comprueba que el runtime use UID 1654. |
+| Artefactos CI | Parcial | Sube TRX durante 14 días; no conserva todavía digest de imagen, plan Terraform ni manifiesto de despliegue. |
+| Terraform en CI | Pendiente | No ejecuta `terraform fmt -check`, `terraform init -backend=false` ni `terraform validate`. |
+| Análisis de seguridad | Pendiente | No hay auditoría de dependencias, búsqueda de secretos ni análisis específico de Docker/Terraform. Debe adaptarse al stack .NET sin copiar literalmente `npm audit`. |
+| OIDC GitHub→AWS | Pendiente | No existe proveedor OIDC ni rol de despliegue gestionados por Terraform. |
+| Publicación ECR | Pendiente | No inicia sesión, no publica la imagen y no registra el digest. |
+| Migración y despliegue ECS | Pendiente | No ejecuta `--migrate`, no actualiza Terraform/ECS, no espera estabilidad y no prueba salud. |
+| Evidencia GitHub | Pendiente | No existe URL de ejecución, check de PR, deployment de environment ni registro del SHA desplegado. |
+
+#### Diseño objetivo del pipeline
+
+| Etapa | Trigger y credenciales | Trabajo mínimo | Puerta de aceptación |
+| --- | --- | --- | --- |
+| Validación | PR, push y ejecución manual; sin AWS | Checkout, SDK fijado, restore, build Release, tests PostgreSQL, artefacto Release, imagen Docker, UID no-root y Terraform fmt/validate. | Todos los jobs verdes y resultados TRX descargables. |
+| Análisis | PR y push; sin AWS | Analizadores del compilador, dependencias vulnerables, secretos y revisión de configuración Docker/Terraform con herramientas mantenidas y fijadas. | Un hallazgo bloqueante hace fallar el workflow; no se imprimen secretos. |
+| Autenticación | Solo push a `main` o ejecución manual autorizada | Solicitar token OIDC y asumir el rol AWS limitado al repositorio, rama/environment y audiencia esperados. | CloudTrail/STS identifica el rol federado; GitHub no contiene access keys permanentes. |
+| Build y publicación | Solo después de validación y OIDC | Construir una vez, etiquetar con SHA completo o corto acordado, publicar en ECR inmutable y capturar el digest. | La etiqueta corresponde al commit y el digest desplegado queda como output/artefacto. |
+| Preparación Terraform | Job de despliegue `production` | Generar y revisar/aplicar los cambios necesarios sin sustituir Terraform por actualizaciones manuales de ECS. | Plan sin destrucciones inesperadas y task definitions referencian la revisión inmutable. |
+| Migración | Después de publicar la imagen, antes del rollout | Ejecutar exactamente una tarea ECS del mismo artefacto con `--migrate`; esperar fin y leer exit code/logs. | Código `0`; cualquier fallo detiene el despliegue y mantiene la revisión web anterior. |
+| Rollout | Solo tras migración correcta | Elevar o actualizar ECS a dos tareas, esperar servicio estable y comprobar `/api/health/live`, `/api/health/ready` y HTTPS público. | Dos tareas saludables, sin rollout fallido y smoke test correcto. |
+| Evidencias y rollback | Siempre, especialmente tras fallo | Conservar SHA, digest, revisión de task definition, plan, migración, health checks y enlace de la ejecución. Permitir volver a una imagen compatible conocida. | La ejecución explica qué se desplegó; un rollback no intenta revertir automáticamente la base de datos. |
+
+#### GitHub, OIDC y mínimo privilegio
+
+- [ ] Versionar los workflows y comprobar que GitHub Actions está habilitado en el repositorio.
+- [ ] Configurar checks obligatorios de CI antes de integrar cambios en `main`.
+- [ ] Crear el provider OIDC de GitHub en IAM con audiencia `sts.amazonaws.com`.
+- [ ] Crear mediante Terraform un rol de despliegue cuya confianza limite `sub` al repositorio real y a `main` o al environment `production`; no usar el patrón abierto `repo:OWNER/REPOSITORY:*` como condición final si puede restringirse más.
+- [ ] Conceder solo las acciones necesarias sobre ECR, ECS, la tarea de migración, `iam:PassRole` limitado y los recursos Terraform administrados. No usar `AdministratorAccess`.
+- [ ] Declarar `contents: read` como permiso base y `id-token: write` únicamente en el job que asume el rol.
+- [ ] Configurar en GitHub Variables la región, cuenta, repositorio ECR, clúster, servicio, dominio y ARN del rol. Los secretos de aplicación permanecen en Parameter Store/AWS, no en GitHub.
+- [ ] Crear el environment `production`, restringirlo a `main` y decidir si requiere aprobación manual. Una aprobación es compatible con el curso, pero el camino ordinario debe seguir siendo un despliegue iniciado por push a `main`.
+- [ ] Definir concurrencia única por environment con despliegues en cola y sin cancelar una migración o apply en curso.
+
+#### Criterios de aceptación de fase 6
+
+- [ ] Una pull request ejecuta validación completa sin obtener credenciales AWS y publica un check verificable.
+- [ ] Un fallo de compilación, test, análisis o validación Terraform impide publicar y desplegar.
+- [ ] Un push de una revisión limpia a `main` publica en ECR exactamente la imagen de ese commit mediante OIDC.
+- [ ] La ejecución registra SHA y digest; ninguna task definition de producción usa `latest`.
+- [ ] Solo una tarea `--migrate` se ejecuta por despliegue y su código distinto de cero bloquea el rollout.
+- [ ] Tras una migración correcta, ECS mantiene dos tareas saludables y GitHub espera estabilidad antes de finalizar correctamente.
+- [ ] Los health checks y una lectura pública HTTPS se ejecutan después del rollout.
+- [ ] Un despliegue fallido conserva o recupera la última imagen compatible sin ocultar el fallo del workflow.
+- [ ] GitHub conserva los resultados de tests y la evidencia suficiente para relacionar commit, imagen, migración y revisión ECS.
+- [ ] `docs/acceptance.md` registra la URL de la ejecución final, fecha, commit, digest, duración, resultado de migración y resultado de los smoke tests.
+
+### Fase 7: operación y entrega
+
+- [x] Runbook local de despliegue, rollback, parada de costes y recuperación documentado.
+- [x] Simulacro aislado de backup/restauración PostgreSQL ejecutado localmente.
+- [x] Presupuesto, SNS y cinco alarmas descritos en Terraform.
+- [ ] Confirmar la suscripción SNS y demostrar al menos una notificación real de alarma.
+- [ ] Confirmar presupuesto y avisos en la cuenta AWS; registrar que no detienen gasto automáticamente.
+- [ ] Restaurar RDS/PITR a una instancia temporal, verificar datos y eliminar los recursos temporales después de conservar la evidencia.
+- [ ] Recuperar una versión de un objeto S3 y comprobar su correspondencia con los metadatos SQL restaurados.
+- [ ] Resolver formalmente si S3 tendrá AWS Backup además de versionado; el estado actual no cumple el backup independiente previsto en el plan original.
+- [ ] Resolver formalmente si se incorpora CloudFront o se aprueba su exclusión y el coste/rendimiento de servir `/media/*` mediante ALB/ECS.
+- [ ] Consolidar la estimación de costes, instrucciones reproducibles, evidencias, limitaciones y procedimiento de destrucción en el README final.
+
+### Decisiones de alcance que bloquean el cierre completo
+
+- [ ] **Imágenes:** aprobar el contrato definitivo. El plan inicial preveía hasta cinco imágenes propias en S3; el árbol actual permite una imagen al crear, desde archivo o URL HTTP/HTTPS, y no permite añadir otra al editar. Las pruebas y documentos deben describir una sola versión del contrato.
+- [ ] **CloudFront:** reintroducir CDN/OAC o aprobar expresamente la arquitectura sin CDN. La exclusión actual simplifica la retirada inmediata, pero se desvía del plan de fase 5 y de la extensión S3 + CDN del enunciado.
+- [ ] **Backup S3:** añadir AWS Backup y una restauración real, o aprobar expresamente que el versionado con expiración a 30 días es una protección reducida y no un backup independiente.
+- [ ] **Alta disponibilidad:** demostrar dos tareas en AZ distintas y continuidad real con la mezcla Fargate/Fargate Spot, o volver a dos tareas On-Demand para la aceptación final.

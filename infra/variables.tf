@@ -107,12 +107,12 @@ variable "service_desired_count" {
 
 variable "task_cpu" {
   type    = number
-  default = 512
+  default = 256
 }
 
 variable "task_memory" {
   type    = number
-  default = 1024
+  default = 512
 }
 
 variable "db_name" {
@@ -168,4 +168,15 @@ variable "alb_deletion_protection" {
 variable "log_retention_days" {
   type    = number
   default = 30
+}
+
+variable "monthly_budget_limit_usd" {
+  description = "Límite mensual de coste bruto para los avisos de AWS Budgets."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.monthly_budget_limit_usd > 0
+    error_message = "monthly_budget_limit_usd debe ser mayor que cero."
+  }
 }

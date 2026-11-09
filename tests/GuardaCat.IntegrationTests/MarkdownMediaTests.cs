@@ -15,10 +15,28 @@ public sealed class MarkdownMediaTests
         Assert.Contains($"src=\"{Url}\"", html);
         Assert.False(renderer.TryRender($"![Foto]({Url})", out _));
         Assert.False(renderer.TryRender("![Foto](https://example.org/x.png)", out _, new HashSet<string> { Url }));
+        Assert.True(renderer.TryRender("![Foto](https://example.org/x.png)", out var external,
+            new HashSet<string> { "https://example.org/x.png" }));
+        Assert.Contains("src=\"https://example.org/x.png\"", external);
         Assert.False(renderer.TryRender("![Foto](data:image/png;base64,AAAA)", out _, new HashSet<string> { Url }));
         Assert.True(renderer.TryRender($"Hola ![Foto]({Url})", out var deleted, omitUnavailable: true));
         Assert.Contains("Hola", deleted);
         Assert.DoesNotContain("<img", deleted);
+    }
+
+    [Fact]
+    public void Feed_excerpt_omits_image_markdown_and_preserves_image_order()
+    {
+        const string external = "https://example.org/foto.png";
+        var markdown = $"## Títol\n\nText **visible**.\n\n![Local]({Url})\n\n![Externa](<{external}>)";
+
+        Assert.Equal([Url, external], renderer.ImageUrlsInOrder(markdown));
+        var excerpt = renderer.Excerpt(markdown);
+        Assert.Contains("Títol", excerpt);
+        Assert.Contains("Text visible.", excerpt);
+        Assert.DoesNotContain("Imatge", excerpt);
+        Assert.DoesNotContain("![", excerpt);
+        Assert.DoesNotContain("media/", excerpt);
     }
 
     [Theory]

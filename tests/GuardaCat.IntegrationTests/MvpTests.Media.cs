@@ -57,46 +57,38 @@ public sealed partial class MvpTests
     }
 
     [Fact]
-    public async Task Post_images_require_owner_session_csrf_and_obey_limit_and_cascade_cleanup()
+    public async Task Post_images_can_only_be_uploaded_during_creation_and_are_cleaned_up_with_the_post()
     {
         await using var host = database.CreateHost();
         using var owner = Client(host);
-        using var other = Client(host);
         using var anonymous = Client(host);
         await SignInAsync(owner);
-        await SignInAsync(other);
-        using var created = await Mutate(owner, HttpMethod.Post, "/api/posts", ValidPost());
-        var post = (await created.Content.ReadFromJsonAsync<PostResponse>())!;
-        var path = $"/api/posts/{post.Id}/images";
-        using var noSession = await Upload(anonymous, path, HttpMethod.Post);
+        using var noSession = await CreatePostWithImage(anonymous);
         Assert.Equal(HttpStatusCode.Unauthorized, noSession.StatusCode);
-        using var noCsrf = await owner.PostAsync(path, new ByteArrayContent(ImageValidationTests.CreateImage()));
+        using var noCsrf = await owner.PostAsync("/api/posts/with-image", PostWithImageContent());
         Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
-        using var wrongOwner = await Upload(other, path, HttpMethod.Post);
-        Assert.Equal(HttpStatusCode.Forbidden, wrongOwner.StatusCode);
-        var images = new List<MediaResponse>();
-        for (var index = 0; index < MediaLimits.MaxPostImages; index++)
-        {
-            using var upload = await Upload(owner, path, HttpMethod.Post);
-            Assert.Equal(HttpStatusCode.Created, upload.StatusCode);
-            images.Add((await upload.Content.ReadFromJsonAsync<MediaResponse>())!);
-        }
-        using var excessive = await Upload(owner, path, HttpMethod.Post);
-        Assert.Equal(HttpStatusCode.Conflict, excessive.StatusCode);
+
+        using var created = await CreatePostWithImage(owner);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var post = (await created.Content.ReadFromJsonAsync<PostResponse>())!;
         var listed = await anonymous.GetFromJsonAsync<List<MediaResponse>>($"/api/public/posts/{post.Id}/images");
-        Assert.Equal(MediaLimits.MaxPostImages, listed!.Count);
+        var image = Assert.Single(listed!);
+        Assert.Contains("<img", post.BodyHtml);
+        var feed = await anonymous.GetFromJsonAsync<PagedResponse<PostSummaryResponse>>("/api/public/posts");
+        var summary = Assert.Single(feed!.Items);
+        Assert.Equal(image.Url, summary.ImageUrl);
+        Assert.Equal("Text segur.", summary.Excerpt);
+        Assert.DoesNotContain("![", summary.Excerpt);
+        using var lateUpload = await Upload(owner, $"/api/posts/{post.Id}/images", HttpMethod.Post);
+        Assert.NotEqual(HttpStatusCode.Created, lateUpload.StatusCode);
         using var deletion = await Mutate(owner, HttpMethod.Delete, $"/api/posts/{post.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deletion.StatusCode);
-        foreach (var image in images)
-        {
-            using var removed = await anonymous.GetAsync(image.Url);
-            Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
-        }
+        using var removed = await anonymous.GetAsync(image.Url);
+        Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         Assert.False(await db.MediaAssets.AnyAsync(value => value.PostId == post.Id));
-        var keys = images.Select(image => image.Id.ToString("N")).ToArray();
-        Assert.Equal(images.Count, await db.OutboxMessages.CountAsync(value => keys.Contains(value.ObjectKey!)));
+        Assert.True(await db.OutboxMessages.AnyAsync(value => value.ObjectKey == image.Id.ToString("N")));
     }
 
     [Fact]
@@ -144,30 +136,67 @@ public sealed partial class MvpTests
     }
 
     [Fact]
-    public async Task Markdown_images_must_belong_to_post_and_deletion_removes_references()
+    public async Task Existing_images_can_be_kept_or_removed_but_new_images_cannot_be_added_on_edit()
     {
         await using var host = database.CreateHost();
         using var owner = Client(host);
         await SignInAsync(owner);
-        using var created = await Mutate(owner, HttpMethod.Post, "/api/posts", ValidPost());
+        using var created = await Mutate(owner, HttpMethod.Post, "/api/posts", new SavePostRequest
+        {
+            Title = "Imatge externa", BodyMarkdown = "Text abans i després.", ImageUrl = "https://example.org/foto.png"
+        });
         var post = (await created.Content.ReadFromJsonAsync<PostResponse>())!;
-        using var second = await Mutate(owner, HttpMethod.Post, "/api/posts", ValidPost());
-        var other = (await second.Content.ReadFromJsonAsync<PostResponse>())!;
-        using var upload = await Upload(owner, $"/api/posts/{post.Id}/images", HttpMethod.Post);
-        var image = (await upload.Content.ReadFromJsonAsync<MediaResponse>())!;
-        var body = $"Text abans ![Foto]({image.Url}) i després.";
-        using var invalid = await Mutate(owner, HttpMethod.Put, $"/api/posts/{other.Id}", new { Title = other.Title, BodyMarkdown = body, Tags = Array.Empty<string>() });
+        Assert.Contains("src=\"https://example.org/foto.png\"", post.BodyHtml);
+        var feed = await owner.GetFromJsonAsync<PagedResponse<PostSummaryResponse>>("/api/public/posts");
+        var summary = Assert.Single(feed!.Items);
+        Assert.Equal("https://example.org/foto.png", summary.ImageUrl);
+        Assert.Equal("Text abans i després.", summary.Excerpt);
+        var externalEdit = await owner.GetFromJsonAsync<EditPostResponse>($"/api/me/posts/{post.Id}/edit");
+        using var kept = await Mutate(owner, HttpMethod.Put, $"/api/posts/{post.Id}", new SavePostRequest
+        {
+            Title = post.Title, BodyMarkdown = externalEdit!.BodyMarkdown
+        });
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        using var invalid = await Mutate(owner, HttpMethod.Put, $"/api/posts/{post.Id}", new SavePostRequest
+        {
+            Title = post.Title, BodyMarkdown = externalEdit.BodyMarkdown + "\n\n![Nova](https://example.org/nova.png)"
+        });
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
-        using var valid = await Mutate(owner, HttpMethod.Put, $"/api/posts/{post.Id}", new { Title = post.Title, BodyMarkdown = body, Tags = Array.Empty<string>() });
-        Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
-        Assert.Contains("<img", (await valid.Content.ReadFromJsonAsync<PostResponse>())!.BodyHtml);
-        using var removed = await Mutate(owner, HttpMethod.Delete, $"/api/me/media/{image.Id}");
-        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
-        var edit = await owner.GetFromJsonAsync<EditPostResponse>($"/api/me/posts/{post.Id}/edit");
-        Assert.DoesNotContain(image.Url, edit!.BodyMarkdown);
-        var published = await owner.GetFromJsonAsync<PostResponse>($"/api/public/posts/{post.Id}");
-        Assert.Contains("Text abans", published!.BodyHtml);
-        Assert.DoesNotContain("<img", published.BodyHtml);
+
+        using var localCreation = await CreatePostWithImage(owner);
+        var localPost = (await localCreation.Content.ReadFromJsonAsync<PostResponse>())!;
+        var image = Assert.Single((await owner.GetFromJsonAsync<List<MediaResponse>>($"/api/public/posts/{localPost.Id}/images"))!);
+        using var removeFromBody = await Mutate(owner, HttpMethod.Put, $"/api/posts/{localPost.Id}", new SavePostRequest
+        {
+            Title = localPost.Title, BodyMarkdown = "Text sense la imatge."
+        });
+        Assert.Equal(HttpStatusCode.OK, removeFromBody.StatusCode);
+        var published = await owner.GetFromJsonAsync<PostResponse>($"/api/public/posts/{localPost.Id}");
+        Assert.DoesNotContain("<img", published!.BodyHtml);
+        using var removed = await owner.GetAsync(image.Url);
+        Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
+    }
+
+    private static async Task<HttpResponseMessage> CreatePostWithImage(HttpClient client)
+    {
+        var csrf = (await client.GetFromJsonAsync<CsrfResponse>("/api/auth/csrf"))!;
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/posts/with-image")
+        {
+            Content = PostWithImageContent()
+        };
+        request.Headers.Add("X-CSRF-TOKEN", csrf.Token);
+        return await client.SendAsync(request);
+    }
+
+    private static MultipartFormDataContent PostWithImageContent()
+    {
+        var content = new MultipartFormDataContent();
+        content.Add(new StringContent("Publicació amb imatge"), "Title");
+        content.Add(new StringContent("Text segur."), "BodyMarkdown");
+        var image = new ByteArrayContent(ImageValidationTests.CreateImage());
+        image.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(image, "Image", "foto.png");
+        return content;
     }
 
     private static HttpRequestMessage BinaryRequest(string path, HttpMethod method, string csrf)

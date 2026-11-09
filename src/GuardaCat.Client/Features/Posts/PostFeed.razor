@@ -23,6 +23,7 @@
         @foreach (var post in data.Items)
         {
             <article class="post-row" @key="post.Id">
+                <a class="post-row-link" href="@($"/posts/{post.Id}")" aria-label="@($"Obre la publicació: {post.Title}")"></a>
                 <p class="post-meta author-meta">
                     <a class="author-identity" href="@($"/users/{post.AuthorId}")">
                         <AuthorAvatar Name="@post.AuthorName" Avatar="post.AuthorAvatar" />
@@ -31,8 +32,14 @@
                     <span aria-hidden="true">·</span>
                     <time datetime="@post.CreatedAtUtc.ToString("O")">@post.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</time>
                 </p>
-                <h2><a href="@($"/posts/{post.Id}")">@post.Title</a></h2>
+                <h2>@post.Title</h2>
                 <p class="post-excerpt">@post.Excerpt</p>
+                @if (post.ImageUrl is not null)
+                {
+                    <div class="post-feed-image">
+                        <img src="@post.ImageUrl" alt="Imatge de la publicació @post.Title" loading="lazy" />
+                    </div>
+                }
                 @if (post.Tags.Count > 0)
                 {
                     <div class="tag-list" aria-label="Etiquetes">

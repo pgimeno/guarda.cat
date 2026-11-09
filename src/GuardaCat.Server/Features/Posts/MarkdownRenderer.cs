@@ -39,6 +39,23 @@ public sealed class MarkdownRenderer
         return true;
     }
 
+    public List<string> ImageUrlsInOrder(string markdown) => Markdown.Parse(markdown, pipeline)
+        .Descendants<LinkInline>()
+        .Where(link => link.IsImage && link.Url is not null)
+        .Select(link => link.Url!)
+        .ToList();
+
+    public HashSet<string> ImageUrls(string markdown) =>
+        ImageUrlsInOrder(markdown).ToHashSet(StringComparer.Ordinal);
+
+    public string Excerpt(string markdown, int maxLength = 200)
+    {
+        foreach (var url in ImageUrls(markdown)) markdown = RemoveImage(markdown, url);
+        var text = string.Join(' ', Markdown.ToPlainText(markdown, pipeline)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return text.Length <= maxLength ? text : $"{text[..maxLength].TrimEnd()}…";
+    }
+
     public string RemoveImage(string markdown, string url)
     {
         var document = Markdown.Parse(markdown, pipeline);

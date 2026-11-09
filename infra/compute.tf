@@ -3,8 +3,13 @@ resource "aws_ecs_cluster" "application" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
+}
+
+resource "aws_ecs_cluster_capacity_providers" "application" {
+  cluster_name       = aws_ecs_cluster.application.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 }
 
 resource "aws_cloudwatch_log_group" "application" {
@@ -74,11 +79,12 @@ resource "aws_ecs_task_definition" "web" {
 
     secrets = [{
       name      = "ConnectionStrings__Postgres"
-      valueFrom = "${aws_secretsmanager_secret.database.arn}:connectionString::"
+      valueFrom = aws_ssm_parameter.database_connection.arn
     }]
 
     logConfiguration = local.log_configuration
     linuxParameters  = { initProcessEnabled = true }
+    stopTimeout      = 120
   }])
 }
 
@@ -108,7 +114,7 @@ resource "aws_ecs_task_definition" "migration" {
 
     secrets = [{
       name      = "ConnectionStrings__Postgres"
-      valueFrom = "${aws_secretsmanager_secret.database.arn}:connectionString::"
+      valueFrom = aws_ssm_parameter.database_connection.arn
     }]
 
     logConfiguration = local.log_configuration
@@ -121,8 +127,18 @@ resource "aws_ecs_service" "web" {
   cluster          = aws_ecs_cluster.application.id
   task_definition  = aws_ecs_task_definition.web.arn
   desired_count    = var.service_desired_count
-  launch_type      = "FARGATE"
   platform_version = "LATEST"
+
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    base              = 1
+    weight            = 0
+  }
+
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 1
+  }
 
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
@@ -149,6 +165,7 @@ resource "aws_ecs_service" "web" {
 
   depends_on = [
     aws_lb_listener.https,
-    aws_secretsmanager_secret_version.database
+    aws_ecs_cluster_capacity_providers.application,
+    aws_ssm_parameter.database_connection
   ]
 }

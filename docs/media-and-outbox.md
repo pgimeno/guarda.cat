@@ -7,7 +7,8 @@ Implementación de la fase 3, cerrada tras la validación funcional confirmada e
 | Operación | Contrato |
 | --- | --- |
 | Sustituir avatar propio | `PUT /api/me/avatar`, cuerpo binario `image/jpeg` o `image/png`. |
-| Añadir foto a un post existente | `POST /api/posts/{id}/images`, mismo formato; solo autor. |
+| Crear un post con foto local | `POST /api/posts/with-image`, formulario multipart con título, texto, tags y un JPEG/PNG. |
+| Crear un post con foto enlazada | `POST /api/posts`, JSON con `ImageUrl` HTTP/HTTPS; el archivo no se copia. |
 | Listar fotos de un post | `GET /api/public/posts/{id}/images`, lista de ID, URL, ancho y alto. |
 | Borrar un medio propio | `DELETE /api/me/media/{id}`, idempotente; un medio existente ajeno devuelve 403. |
 | Leer archivo | `GET /media/{id}`, comprueba metadatos, devuelve JPEG/PNG o 404; `no-store`, `nosniff`, sin renovación de cookie. |
@@ -16,11 +17,11 @@ Implementación de la fase 3, cerrada tras la validación funcional confirmada e
 
 Todas las mutaciones requieren sesión y `X-CSRF-TOKEN`. Subidas: 10/minuto/IP por instancia. Solo JPEG/PNG, sin SVG ni animaciones; MIME y formato real deben coincidir. Se decodifican los píxeles y se reexporta el archivo sin EXIF ni cargas anexas. La orientación EXIF no se conserva. No se confía en nombres de archivo del cliente.
 
-Avatar: 256 KiB y 512 px por lado. Fotos: cinco por post, 5 MiB por archivo, 4096 px por lado y 12 millones de píxeles. Los límites de bytes se aplican a la entrada, aun sin Content-Length, y al resultado reexportado. Los tamaños se comprueban antes de decodificar. Se rechaza un exceso con 413 (bytes), 400 (formato/dimensiones) o 409 (cantidad).
+Avatar: 256 KiB y 512 px por lado. La foto local de una publicación: 5 MiB, 4096 px por lado y 12 millones de píxeles. Los límites de bytes se aplican a la entrada y al resultado reexportado. Los tamaños se comprueban antes de decodificar. Se rechaza un exceso con 413 (bytes) o 400 (formato/dimensiones).
 
 `MediaAssets` guarda propietario, post opcional (null significa avatar), clave inmutable, MIME, bytes, dimensiones y fecha. Un índice parcial único garantiza un avatar por usuario; las mutaciones toman un bloqueo SQL sobre el propietario para serializar sustituciones, el límite de fotos, borrados y edición del Markdown. No se admite reasignar un medio a otro propietario o post.
 
-La subida devuelve una URL `/media/{guid}`. El editor la inserta en Markdown; el usuario debe guardar el texto. Las fotos ya subidas pueden volver a insertarse desde el selector. Guardado y vista previa validan la pertenencia de cada imagen al mismo post. Se rechazan URLs externas, data/javascript, avatares y fotos de otro post, aunque sean del mismo autor. Al borrar una foto, el servidor retira los nodos Markdown que la referencian en la misma transacción. Si el usuario había escrito manualmente una sintaxis distinta en un editor abierto, deberá retirar esa referencia de sus cambios locales antes de guardar; el servidor rechaza la referencia ya eliminada.
+La imagen solo se puede elegir al crear la publicación. Un archivo local se valida, reexporta, guarda en S3 y se enlaza como `/media/{guid}` dentro de la misma operación; un enlace se normaliza y persiste como URL HTTP/HTTPS sin descargarlo. La edición permite conservar o retirar imágenes existentes, pero rechaza cualquier referencia nueva. Si se retira una imagen local del texto, sus metadatos desaparecen en la misma transacción y su borrado físico queda en el outbox. Se rechazan `data:`, `javascript:`, avatares y medios de otras publicaciones.
 
 ## Archivo externo y compensación
 

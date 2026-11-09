@@ -4,9 +4,9 @@ Comunidad generalista en catalán para publicar, conversar y descubrir perspecti
 
 ## Estado
 
-Las fases 1–4 están cerradas: base local, MVP, tags/filtro, likes limitados a posts, perfiles, imágenes con avatares, outbox de correo y empaquetado multiinstancia. La validación funcional en navegador quedó confirmada el 03/11/2026. Ese mismo día se ejecutaron las 66 pruebas contra bases PostgreSQL temporales y la aceptación reproducible de fase 4, ambas sin fallos. La fase 5 dispone de un único stack Terraform preparado para la cuenta de estudiante, pero todavía no se ha desplegado en AWS.
+Las fases 1–4 están cerradas: base local, MVP, tags/filtro, likes limitados a posts, perfiles, imágenes con avatares, outbox de correo y empaquetado multiinstancia. La validación funcional en navegador quedó confirmada el 03/11/2026. La fase 5 comenzó el 06/11/2026: el backend remoto, ACM, las identidades SES y sus registros DNS en Hostinger están configurados y verificados; el stack de aplicación todavía no se ha desplegado. El 08/11/2026 se repitieron las 66 pruebas, el empaquetado multiinstancia y un simulacro local de restauración sin fallos.
 
-Revisión del 03/11/2026:
+Revisiones del 03/11/2026, 06/11/2026 y 08/11/2026:
 
 - [x] PostgreSQL saludable en Docker Engine, publicado en `127.0.0.1:5433`.
 - [x] Migración desde una base vacía y cliente/API servidos por el mismo host local.
@@ -18,12 +18,14 @@ Revisión del 03/11/2026:
 - [x] Tags, filtro, likes solo en posts, perfiles, imágenes y outbox comprobados por API y navegador.
 - [x] Imagen Docker única, modos `--web`/`--migrate`, dos réplicas locales, proxy HTTPS y almacenamiento S3-compatible verificados.
 - [x] `scripts/verify-packaging.ps1`: migración puntual, cookie compartida, contratos de caché y objeto leído desde ambas réplicas.
+- [x] Bootstrap AWS de fase 5: estado Terraform remoto protegido, ACM emitido y dominio/destinatario SES verificados mediante Hostinger.
+- [x] CI sin despliegue, presupuesto y alarmas preparados como código; restauración PostgreSQL local verificada.
 
-**Próximo paso:** revisar el plan y aplicar la fase 5 siguiendo [infra/README.md](infra/README.md). El stack prepara dos AZ, ALB/ACM, ECS, ECR, RDS, S3, SES, Secrets Manager y CloudWatch; el DNS seguirá administrado en Hostinger.
+**Próximo paso:** renovar las credenciales temporales de la cuenta y regenerar el plan con `service_desired_count=0` siguiendo [infra/README.md](infra/README.md). El plan anterior quedó obsoleto al incorporar presupuesto y alarmas y no debe aplicarse. Ningún recurso nuevo de la aplicación se ha creado todavía.
 
 ## Decisión arquitectónica
 
-Un único host ASP.NET Core sirve Blazor WebAssembly y la API; PostgreSQL guarda datos y trabajos pendientes, S3 los archivos y SES envía correo. Se conservan un único despliegue y workers dentro del proceso. Las alternativas y el diagrama están en [arquitectura](docs/architecture.md). Para cumplir la retirada inmediata de URLs eliminadas, esta entrega sirve `/media/*` mediante el servidor, comprobando metadatos y sin caché; S3 permanece privado. La infraestructura AWS, alta disponibilidad, backups, pipeline y costes pertenecen a fases posteriores y aún no están acreditados.
+Un único host ASP.NET Core sirve Blazor WebAssembly y la API; PostgreSQL guarda datos y trabajos pendientes, S3 los archivos y SES envía correo. Se conservan un único despliegue y workers dentro del proceso. Las alternativas y el diagrama están en [arquitectura](docs/architecture.md). Para cumplir la retirada inmediata de URLs eliminadas, esta entrega sirve `/media/*` mediante el servidor, comprobando metadatos y sin caché; S3 permanece privado. La infraestructura y su operación están descritas y el CI local está preparado, pero el stack de aplicación, la alta disponibilidad y los backups aún no se han acreditado en AWS real.
 
 ## Requisitos locales
 
@@ -105,7 +107,7 @@ Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, 
 - `/` ofrece lectura pública paginada; `/posts/{id}` muestra el artículo y sus comentarios. `/my-posts`, `/posts/new` y `/posts/{id}/edit` requieren sesión.
 - Solo el autor puede editar o eliminar su post. El borrado elimina también sus comentarios. El servidor toma la identidad de la sesión, nunca de un `AuthorId` enviado por el cliente.
 - Títulos de 5–150 caracteres, Markdown de 1–50.000 y comentarios de texto plano de 1–2.000. Todos los posts guardados quedan publicados; no hay borradores.
-- Markdig procesa el Markdown con HTML incrustado deshabilitado. HtmlSanitizer aplica una lista permitida de etiquetas y enlaces HTTP/HTTPS. Imágenes y vista previa solo aceptan URLs relativas de medios vinculados al mismo post; se rechazan imágenes externas, avatares, medios ajenos o eliminados.
+- Markdig procesa el Markdown con HTML incrustado deshabilitado. HtmlSanitizer aplica una lista permitida de etiquetas y enlaces HTTP/HTTPS. Al crear el post se admite una imagen local guardada en S3 o una URL HTTP/HTTPS que no se copia; al editar solo se pueden conservar o retirar las imágenes existentes.
 - Páginas de 20 elementos por defecto, máximo 50. Posts ordenados por fecha e ID descendentes; comentarios por fecha e ID ascendentes. El desempate es determinista, aunque la inserción o eliminación entre peticiones puede desplazar las páginas.
 - Cada post admite hasta 5 tags normalizados en minúsculas, de 2–30 caracteres. La portada permite filtrar por un tag mediante `?tag=` y conserva el filtro al paginar.
 - Cada usuario autenticado puede dar o retirar un único like por post. Las operaciones son idempotentes; no existen likes en comentarios ni downvotes. El límite es 60 mutaciones de like por minuto/IP.
@@ -123,8 +125,8 @@ Las pruebas cubren autenticación, CSRF, validación, concurrencia de registro, 
 
 ## Imágenes y notificaciones
 
-- JPEG/PNG con decodificación real y reexportación sin metadatos: avatar hasta 256 KiB y 512 × 512 px; hasta cinco fotos por post, de 5 MiB, 4096 px por lado y 12 megapíxeles cada una.
-- Tras crear un post, el editor permite subir e insertar imágenes en Markdown. La subida y el guardado del texto son operaciones independientes. Borrar una imagen retira su referencia del texto guardado y programa la limpieza física en SQL. Sustituir un avatar revoca su URL anterior.
+- JPEG/PNG con decodificación real y reexportación sin metadatos: avatar hasta 256 KiB y 512 × 512 px; una foto local al crear cada post, de hasta 5 MiB, 4096 px por lado y 12 megapíxeles.
+- Al crear un post, el editor permite elegir una imagen del dispositivo o indicar un enlace directo. La imagen local se valida y se guarda en S3 junto con la creación; el enlace solo se referencia. No se pueden añadir imágenes al editar. Retirar del texto una imagen local existente programa su limpieza física en SQL. Sustituir un avatar revoca su URL anterior.
 - Cada comentario de otro usuario genera un aviso para el autor, en la misma transacción SQL. El worker reclama tareas con `SKIP LOCKED` y lease, reintenta fallos y puede producir duplicados en casos límite. Borrar un post cancela los avisos aún pendientes; un envío ya en curso no puede retirarse.
 - Development usa `App_Data/media` y captura emails en `App_Data/mail`, fuera de `wwwroot` y excluidos de Git. Production exige configurar S3 y SES; no usa disco local como sustituto.
 - Configuración, rutas, migraciones, operación y pruebas pendientes: [medios y outbox](docs/media-and-outbox.md).
@@ -158,3 +160,4 @@ Esta segunda comprobación valida acceso directo a rutas de la SPA y tipos de co
 - `docs/architecture.md`: decisiones y razonamiento.
 - `docs/architecture.excalidraw`: diagrama editable.
 - `docs/acceptance.md`: evidencias de validación y trabajo pendiente.
+- `docs/aws-deployment-runbook.md`: puertas de despliegue, migración, validación, rollback, recuperación y parada de costes.

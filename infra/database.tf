@@ -54,25 +54,19 @@ resource "aws_db_instance" "postgres" {
   final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${local.name}-final"
 }
 
-resource "aws_secretsmanager_secret" "database" {
-  name                    = "${local.name}/database"
-  recovery_window_in_days = 7
-}
-
-resource "aws_secretsmanager_secret_version" "database" {
-  secret_id = aws_secretsmanager_secret.database.id
-  secret_string = jsonencode({
-    username = var.db_username
-    password = random_password.database.result
-    connectionString = join(";", [
-      "Host=${aws_db_instance.postgres.address}",
-      "Port=${aws_db_instance.postgres.port}",
-      "Database=${var.db_name}",
-      "Username=${var.db_username}",
-      "Password=${random_password.database.result}",
-      "SSL Mode=Require",
-      "Timeout=15",
-      "Command Timeout=60"
-    ])
-  })
+resource "aws_ssm_parameter" "database_connection" {
+  name        = "/${local.name}/database/connection-string"
+  description = "Cadena de conexión PostgreSQL inyectada en las tareas ECS."
+  type        = "SecureString"
+  tier        = "Standard"
+  value = join(";", [
+    "Host=${aws_db_instance.postgres.address}",
+    "Port=${aws_db_instance.postgres.port}",
+    "Database=${var.db_name}",
+    "Username=${var.db_username}",
+    "Password=${random_password.database.result}",
+    "SSL Mode=Require",
+    "Timeout=15",
+    "Command Timeout=60"
+  ])
 }

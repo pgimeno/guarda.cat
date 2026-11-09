@@ -72,6 +72,62 @@ public sealed class MediaService(ApplicationDbContext db, IMediaStorage storage,
         }, ct);
     }
 
+    public async Task<(MediaAsset? Asset, IResult? Error)> CreatePostWithImageAsync(
+        Guid ownerId, Post post, IFormFile file, CancellationToken ct)
+    {
+        if (file.Length > MediaLimits.MaxBytes) return (null, TooLarge(false));
+        ValidatedImage? image;
+        try
+        {
+            await using var input = file.OpenReadStream();
+            image = await ImageValidator.ReadAsync(input, file.ContentType, ct, false);
+        }
+        catch (ImageTooLargeException)
+        {
+            return (null, TooLarge(false));
+        }
+        if (image is null) return (null, Results.Problem(statusCode: 400,
+            title: "Cal una imatge JPEG o PNG vàlida, de fins a 4096 píxels per costat i 12 megapíxels."));
+
+        var assetId = Guid.NewGuid();
+        var key = assetId.ToString("N");
+        var compensation = OutboxMessage.Cleanup(key);
+        compensation.AvailableAtUtc = await db.Database.SqlQuery<DateTime>(
+            $"SELECT now() + interval '1 hour' AS \"Value\"").SingleAsync(ct);
+        db.OutboxMessages.Add(compensation);
+        await db.SaveChangesAsync(ct);
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            timeout.CancelAfter(TimeSpan.FromMinutes(1));
+            await storage.PutAsync(key, image.Bytes, image.ContentType, timeout.Token);
+        }
+
+        var asset = new MediaAsset
+        {
+            Id = assetId,
+            OwnerId = ownerId,
+            PostId = post.Id,
+            ObjectKey = key,
+            ContentType = image.ContentType,
+            Size = image.Bytes.Length,
+            Width = image.Width,
+            Height = image.Height
+        };
+        post.BodyMarkdown = PostValidation.AppendImage(post.BodyMarkdown, Url(assetId));
+        await TransactionAsync(ownerId, async () =>
+        {
+            var pending = await db.OutboxMessages.FromSqlInterpolated(
+                $"SELECT * FROM \"OutboxMessages\" WHERE \"Id\" = {compensation.Id} AND \"AvailableAtUtc\" > now() FOR UPDATE").ToListAsync(ct);
+            if (pending.Count == 0 || pending[0].LeaseId is not null)
+                throw new InvalidOperationException("The image upload compensation expired before the post was created.");
+            db.Posts.Add(post);
+            db.MediaAssets.Add(asset);
+            db.OutboxMessages.Remove(pending[0]);
+            return Results.NoContent();
+        }, ct);
+        return (asset, null);
+    }
+
     public Task<IResult> DeleteAsync(Guid id, Guid ownerId, CancellationToken ct) =>
         TransactionAsync(ownerId, async () =>
         {
@@ -106,6 +162,12 @@ public sealed class MediaService(ApplicationDbContext db, IMediaStorage storage,
             db.OutboxMessages.Add(OutboxMessage.Cleanup(asset.ObjectKey));
             db.MediaAssets.Remove(asset);
         }
+    }
+
+    internal async Task RemoveUnusedPostImagesAsync(Guid postId, IReadOnlySet<string> retainedUrls, CancellationToken ct)
+    {
+        var unused = await db.MediaAssets.Where(asset => asset.PostId == postId).ToListAsync(ct);
+        QueueDeletion(unused.Where(asset => !retainedUrls.Contains(Url(asset.Id))));
     }
 
     internal Task<IResult> TransactionAsync(Guid ownerId, Func<Task<IResult>> action, CancellationToken ct) =>

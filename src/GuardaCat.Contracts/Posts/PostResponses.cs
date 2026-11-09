@@ -6,7 +6,7 @@ public sealed record PagedResponse<T>(List<T> Items, int Page, int PageSize, int
 
 public sealed record PostSummaryResponse(Guid Id, string Title, string Excerpt, Guid AuthorId,
     string AuthorName, DateTime CreatedAtUtc, int CommentCount, int LikeCount, List<string> Tags,
-    MediaResponse? AuthorAvatar = null);
+    MediaResponse? AuthorAvatar = null, string? ImageUrl = null);
 
 public sealed record PostResponse(Guid Id, string Title, string BodyHtml, Guid AuthorId,
     string AuthorName, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc, int CommentCount, int LikeCount, List<string> Tags,

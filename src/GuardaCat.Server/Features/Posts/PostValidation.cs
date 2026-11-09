@@ -25,8 +25,26 @@ internal static class PostValidation
 
     public static IResult ImagesNotSupported() => Results.ValidationProblem(new Dictionary<string, string[]>
     {
-        ["BodyMarkdown"] = ["El Markdown només pot incloure imatges pujades a aquesta publicació. Retira les imatges externes, alienes o eliminades."]
+        ["BodyMarkdown"] = ["Només pots afegir una imatge en crear la publicació. En editar-la, conserva o elimina les imatges existents."]
     });
+
+    public static IResult? NormalizeImageUrl(string? value, out string? imageUrl)
+    {
+        imageUrl = null;
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var source = value.Trim();
+        if (source.Length > 2_048 || !Uri.TryCreate(source, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["ImageUrl"] = ["Indica un enllaç absolut que comenci per http:// o https://."]
+            });
+        imageUrl = uri.AbsoluteUri;
+        return null;
+    }
+
+    public static string AppendImage(string markdown, string imageUrl) =>
+        $"{markdown.TrimEnd()}\n\n![Imatge](<{imageUrl}>)";
 
     public static IResult NotFound() => Results.Problem(statusCode: 404, title: "La publicació no existeix.");
     public static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Només l'autor pot modificar aquesta publicació.");

@@ -20,17 +20,17 @@ resource "aws_iam_role_policy_attachment" "execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-data "aws_iam_policy_document" "execution_secret" {
+data "aws_iam_policy_document" "execution_parameter" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.database.arn]
+    actions   = ["ssm:GetParameters"]
+    resources = [aws_ssm_parameter.database_connection.arn]
   }
 }
 
-resource "aws_iam_role_policy" "execution_secret" {
-  name   = "database-secret"
+resource "aws_iam_role_policy" "execution_parameter" {
+  name   = "database-parameter"
   role   = aws_iam_role.execution.id
-  policy = data.aws_iam_policy_document.execution_secret.json
+  policy = data.aws_iam_policy_document.execution_parameter.json
 }
 
 resource "aws_iam_role" "task" {

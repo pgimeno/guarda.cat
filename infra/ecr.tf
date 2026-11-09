@@ -15,16 +15,28 @@ resource "aws_ecr_repository" "application" {
 resource "aws_ecr_lifecycle_policy" "application" {
   repository = aws_ecr_repository.application.name
   policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Remove untagged images after 14 days"
-      selection = {
-        tagStatus   = "untagged"
-        countType   = "sinceImagePushed"
-        countUnit   = "days"
-        countNumber = 14
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Remove untagged images after 14 days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 14
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the 5 newest images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 5
+        }
+        action = { type = "expire" }
       }
-      action = { type = "expire" }
-    }]
+    ]
   })
 }

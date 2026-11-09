@@ -18,14 +18,6 @@ public static class MediaEndpoints
             return Results.Ok(assets.Select(MediaService.Response).ToList());
         }).AllowAnonymous().Produces<List<MediaResponse>>().ProducesProblem(404);
 
-        endpoints.MapPost("/api/posts/{id:guid}/images", (Guid id, HttpContext context, MediaService media, CancellationToken ct) =>
-            media.UploadAsync(PostEndpoints.UserId(context.User), id, context.Request, ct))
-            .RequireAuthorization().RequireRateLimiting("media")
-            .Accepts<byte[]>("image/jpeg", "image/png").Produces<MediaResponse>(201)
-            .ProducesProblem(400).ProducesProblem(401).ProducesProblem(403).ProducesProblem(404)
-            .ProducesProblem(409).ProducesProblem(413).ProducesProblem(429)
-            .WithDescription("Cuerpo binario JPEG/PNG, máximo 5 MiB, 4096 px por lado y 12 MP. Hasta cinco imágenes por post propio. Requiere X-CSRF-TOKEN.");
-
         endpoints.MapPut("/api/me/avatar", (HttpContext context, MediaService media, CancellationToken ct) =>
             media.UploadAsync(PostEndpoints.UserId(context.User), null, context.Request, ct))
             .RequireAuthorization().RequireRateLimiting("media")

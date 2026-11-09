@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject PostsClient Posts
 @inject NavigationManager Navigation
+@inject IDialogService DialogService
 
 <PageTitle>@(Id is null ? "Nova publicació" : "Edita la publicació") — Guarda.cat</PageTitle>
 <section class="content-page">
@@ -16,8 +17,38 @@
             <EditForm Model="model" OnValidSubmit="SaveAsync">
                 <DataAnnotationsValidator />
                 <MudTextField T="string" Label="Títol" @bind-Value="model.Title" For="@(() => model.Title)" Disabled="busy" />
-                <MudTextField T="string" Label="En què estàs pensant?" @bind-Value="model.BodyMarkdown" For="@(() => model.BodyMarkdown)"
-                              Lines="14" Disabled="busy" HelperText="Pots utilitzar títols, llistes, enllaços i codi. Afegeix les imatges amb el selector, després de publicar." />
+                <div class="post-body-editor">
+                    <MudTextField T="string" Label="En què estàs pensant?" @bind-Value="model.BodyMarkdown" For="@(() => model.BodyMarkdown)"
+                                  Lines="14" Disabled="busy" HelperText="Pots utilitzar títols, llistes, enllaços i codi." />
+                    @if (Id is null)
+                    {
+                        <div class="post-image-toolbar" aria-label="Afegeix una imatge">
+                            <span class="post-image-toolbar-label">Imatge</span>
+                            <button type="button" class="post-image-tool" disabled="@busy" @onclick="OpenImageUrlDialogAsync"
+                                    aria-label="Afegeix una imatge des d'un enllaç" title="Imatge des d'un enllaç">
+                                <MudIcon Icon="@Icons.Material.Filled.AddPhotoAlternate" Size="Size.Small" />
+                                <span>Enllaç</span>
+                            </button>
+                            <label class="post-image-tool @(busy ? "is-disabled" : null)" for="post-image-upload"
+                                   aria-label="Puja una imatge des del dispositiu" title="Puja una imatge">
+                                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Small" />
+                                <span>Puja</span>
+                            </label>
+                            <InputFile id="post-image-upload" class="post-image-input" OnChange="SelectImageAsync"
+                                       accept="image/jpeg,image/png" disabled="@busy" />
+                        </div>
+                        @if (ImagePreviewSource is not null)
+                        {
+                            <figure class="post-image-preview">
+                                <img src="@ImagePreviewSource" alt="Vista prèvia de la imatge de la publicació" />
+                                <figcaption>
+                                    <span>@(imageSource == "file" ? selectedImage?.Name : "Imatge des d'un enllaç")</span>
+                                    <button type="button" @onclick="RemoveImage" disabled="@busy">Retira</button>
+                                </figcaption>
+                            </figure>
+                        }
+                    }
+                </div>
                 <MudTextField T="string" Label="Etiquetes" @bind-Value="tagsText" Disabled="busy"
                               HelperText="Fins a 5, separades per comes. Exemple: actualitat, cultura" />
                 <div class="page-actions">
@@ -28,12 +59,7 @@
                 <p class="post-meta">En desar, el contingut es publica per a tothom. No es guarden esborranys.</p>
             </EditForm>
         </div>
-        @if (Id is { } postId)
-        {
-            <MediaEditor PostId="postId" OnUploaded="InsertImage" OnRemoved="RemoveImage" @key="postId" />
-            <a href="@($"/posts/{postId}")">Veure la publicació</a>
-        }
-        else { <p>Després de publicar podràs afegir fins a cinc imatges.</p> }
+        @if (Id is { } postId) { <a href="@($"/posts/{postId}")">Veure la publicació</a> }
         @if (preview is not null)
         {
             <section class="article-panel" aria-label="Vista prèvia"><h2>Vista prèvia</h2><p class="post-meta">Contingut de l'última previsualització.</p><div class="markdown-body">@((MarkupString)preview)</div></section>
@@ -49,13 +75,20 @@
     private string? error;
     private string? preview;
     private string tagsText = string.Empty;
+    private string imageSource = "none";
+    private string imageUrl = string.Empty;
+    private string? localImagePreview;
+    private IBrowserFile? selectedImage;
     private bool loading, ready, busy;
+    private string? ImagePreviewSource => imageSource == "file" ? localImagePreview
+        : imageSource == "url" && imageUrl.Length > 0 ? imageUrl : null;
 
     protected override async Task OnParametersSetAsync()
     {
         cancellation.Cancel(); cancellation.Dispose(); cancellation = new();
         var ct = cancellation.Token;
-        model = new(); tagsText = string.Empty; preview = null; error = null; ready = false; loading = true;
+        model = new(); tagsText = string.Empty; imageSource = "none"; imageUrl = string.Empty;
+        localImagePreview = null; selectedImage = null; preview = null; error = null; ready = false; loading = true;
         if (Id is { } id)
         {
             var result = await Posts.EditAsync(id, ct);
@@ -80,10 +113,26 @@
         try
         {
             model.Tags = tagsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            var result = await Posts.SaveAsync(Id, model, ct);
+            model.ImageUrl = Id is null && imageSource == "url" ? imageUrl : null;
+            ApiResult<PostResponse> result;
+            if (Id is null && imageSource == "url" && string.IsNullOrWhiteSpace(imageUrl))
+            {
+                error = "Indica l'enllaç de la imatge abans de publicar.";
+                return;
+            }
+            if (Id is null && imageSource == "file")
+            {
+                if (selectedImage is null)
+                {
+                    error = "Selecciona una imatge abans de publicar.";
+                    return;
+                }
+                result = await Posts.SaveWithImageAsync(model, selectedImage, ct);
+            }
+            else result = await Posts.SaveAsync(Id, model, ct);
             if (ct.IsCancellationRequested) return;
             error = result.Error;
-            if (result.Value is { } post) Navigation.NavigateTo(Id is null ? $"/posts/{post.Id}/edit" : $"/posts/{post.Id}");
+            if (result.Value is { } post) Navigation.NavigateTo($"/posts/{post.Id}");
         }
         finally { busy = false; }
     }
@@ -95,24 +144,72 @@
         var ct = cancellation.Token;
         try
         {
-            var result = await Posts.PreviewAsync(model.BodyMarkdown, ct, Id);
+            var result = await Posts.PreviewAsync(model.BodyMarkdown, ct, Id,
+                Id is null && imageSource == "url" ? imageUrl : null);
             if (ct.IsCancellationRequested) return;
             error = result.Error; preview = result.Value?.BodyHtml;
         }
         finally { busy = false; }
     }
 
-    private void InsertImage(MediaResponse image)
+    private async Task OpenImageUrlDialogAsync()
     {
-        model.BodyMarkdown += $"\n\n![Imatge]({image.Url})";
+        var parameters = new DialogParameters<ImageUrlDialog>();
+        parameters.Add(dialog => dialog.InitialUrl, imageSource == "url" ? imageUrl : string.Empty);
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<ImageUrlDialog>("Imatge des d'un enllaç", parameters, options);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled || result.Data is not string url) return;
+
+        imageSource = "url";
+        imageUrl = url;
+        selectedImage = null;
+        localImagePreview = null;
         preview = null;
+        error = null;
     }
 
-    private void RemoveImage(MediaResponse image)
+    private async Task SelectImageAsync(InputFileChangeEventArgs args)
     {
-        // Remove the syntax inserted by this editor; custom Markdown is validated by the server on save.
-        model.BodyMarkdown = model.BodyMarkdown.Replace($"![Imatge]({image.Url})", string.Empty, StringComparison.Ordinal);
+        var file = args.File;
+        if (file.Size > MediaLimits.MaxBytes)
+        {
+            error = "La imatge supera els 5 MiB.";
+            return;
+        }
+        if (file.ContentType is not ("image/jpeg" or "image/png"))
+        {
+            error = "Tria una imatge JPEG o PNG.";
+            return;
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream(MediaLimits.MaxBytes, cancellation.Token);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellation.Token);
+            localImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
+            selectedImage = file;
+            imageSource = "file";
+            imageUrl = string.Empty;
+            preview = null;
+            error = null;
+        }
+        catch (Exception exception) when (exception is IOException or OperationCanceledException)
+        {
+            if (!cancellation.IsCancellationRequested)
+                error = "No s'ha pogut llegir la imatge. Torna-la a seleccionar.";
+        }
+    }
+
+    private void RemoveImage()
+    {
+        imageSource = "none";
+        imageUrl = string.Empty;
+        localImagePreview = null;
+        selectedImage = null;
         preview = null;
+        error = null;
     }
 
     public void Dispose() { cancellation.Cancel(); cancellation.Dispose(); }

@@ -6,7 +6,7 @@ Guarda.cat es una comunidad generalista en catalán, centrada en Cataluña y abi
 
 Antes de generar la solución o provisionar recursos se debe revisar y aprobar este documento. Su objetivo es fijar los límites del sistema, los flujos de datos y las decisiones que condicionarán las fases posteriores.
 
-La arquitectura sigue pendiente de validación en la cuenta AWS real. La fase 5 se ha acotado a los servicios cubiertos por el curso: DNS en Hostinger, ALB/ACM, ECS, ECR, RDS, S3, SES, Secrets Manager y CloudWatch en `eu-west-1`.
+La arquitectura sigue pendiente de validación completa en la cuenta AWS real. La fase 5 se ha acotado a los servicios cubiertos por el curso: DNS en Hostinger, ALB/ACM, ECS, ECR, RDS, S3, SES, Parameter Store, CloudWatch y AWS Budgets en `eu-west-1`.
 
 Revisión de fase 5: las fases 3 y 4 están cerradas. La imagen multi-stage no-root, los modos web/migración, las dos réplicas, las cookies compartidas y los contratos de caché superaron la aceptación local. `/media/*` continúa a través del host con `no-store` y S3 privado. CloudFront, Route 53 y AWS Backup quedan fuera del despliegue académico.
 
@@ -28,18 +28,18 @@ flowchart TB
 
     subgraph aws["AWS - eu-west-1"]
         acmOrigin["ACM regional<br/>certificado de app.guarda.cat"]
-        secrets["Secrets Manager<br/>credenciales PostgreSQL"]
+        parameter["Parameter Store<br/>SecureString PostgreSQL"]
         ses["SES<br/>avisos de comentarios"]
 
         subgraph vpc["VPC - dos zonas de disponibilidad"]
             subgraph publicA["Subred pública - AZ A"]
                 albA["ALB"]
-                taskA["ECS Fargate<br/>GuardaCat.Server + Client<br/>worker outbox y limpieza"]
+                taskA["ECS Fargate/Spot<br/>GuardaCat.Server + Client<br/>worker outbox y limpieza"]
             end
 
             subgraph publicB["Subred pública - AZ B"]
                 albB["ALB"]
-                taskB["ECS Fargate<br/>GuardaCat.Server + Client<br/>worker outbox y limpieza"]
+                taskB["ECS Fargate/Spot<br/>GuardaCat.Server + Client<br/>worker outbox y limpieza"]
             end
 
             subgraph privateA["Subred privada aislada - AZ A"]
@@ -72,8 +72,8 @@ flowchart TB
     taskB -->|"SDK AWS: lectura, alta y borrado de objetos"| media
     taskA -->|"envío asíncrono desde outbox"| ses
     taskB -->|"envío asíncrono desde outbox"| ses
-    secrets -. "secreto inyectado en la tarea" .-> taskA
-    secrets -. "secreto inyectado en la tarea" .-> taskB
+    parameter -. "SecureString inyectado en la tarea" .-> taskA
+    parameter -. "SecureString inyectado en la tarea" .-> taskB
 
     dbPrimary --> rdsBackup
     taskA --> logs
@@ -92,7 +92,7 @@ flowchart TB
     migration -->|"migraciones EF Core"| dbPrimary
 ```
 
-El diagrama muestra flujos lógicos. `albA` y `albB` representan un único Application Load Balancer desplegado en dos subredes. Del mismo modo, RDS Multi-AZ expone un único endpoint; la instancia standby no atiende lecturas ordinarias.
+El diagrama muestra flujos lógicos. `albA` y `albB` representan un único Application Load Balancer desplegado en dos subredes. Las dos cajas ECS representan réplicas distribuidas por el servicio, sin fijar qué AZ recibe cada capacidad: la estrategia reserva una tarea Fargate normal y coloca la restante en Fargate Spot. Del mismo modo, RDS Multi-AZ expone un único endpoint; la instancia standby no atiende lecturas ordinarias.
 
 ### Arquitectura de la aplicación
 
@@ -126,7 +126,7 @@ La imagen inicia `--web` de forma predeterminada. `--migrate` aplica EF Core, re
 | Monolito modular ASP.NET Core | El alcance cabe en una aplicación; reduce despliegues, contratos internos y operación. | Las funcionalidades comparten proceso y base de datos. Se separan por carpetas, no por microservicios. |
 | Blazor WebAssembly alojado por ASP.NET Core | Mantiene toda la solución en .NET, evita circuitos persistentes de Blazor Server y permite cachear lecturas públicas. | Primera descarga mayor y sin compromiso de SEO en esta versión. |
 | Un único artefacto Docker | Simplifica CI/CD, rollback y compatibilidad entre cliente y API. | El rollout debe conservar temporalmente los recursos WASM de la versión anterior. |
-| ECS Fargate con dos tareas | Evita administrar EC2 y la complejidad de EKS, manteniendo contenedores y procesos de larga duración. | Coste continuo mayor que una solución que escala a cero. |
+| ECS Fargate con dos tareas de 0,25 vCPU/512 MiB | Evita administrar EC2 y la complejidad de EKS. Una tarea normal conserva servicio mínimo y otra Spot reduce coste. | Spot puede interrumpirse; ECS reintenta la tarea y la réplica normal permanece disponible. |
 | Tareas en subredes públicas con IP pública | Evita NAT Gateways y endpoints privados en un proyecto académico. El SG solo permite entrada desde el ALB. | Es una simplificación de coste; las tareas no se describen como privadas. |
 | RDS PostgreSQL Multi-AZ | Identity, relaciones, constraints, transacciones y outbox encajan en SQL. Multi-AZ cubre la caída de una AZ. | El standby no escala lecturas y un failover puede interrumpir temporalmente conexiones. |
 | S3 para imágenes y PostgreSQL para metadatos | Los objetos no deben aumentar el tamaño ni los backups de la base de datos; S3 integra CDN, versionado y backup. | SQL y S3 no ofrecen una transacción común; se requieren compensación y conciliación. |
@@ -141,10 +141,11 @@ La imagen inicia `--web` de forma predeterminada. `--migrate` aplica EF Core, re
 - Las tareas solo aceptan TCP 8080 desde el Security Group del ALB. RDS solo acepta TCP 5432 desde las tareas web y la tarea de migración.
 - El tráfico navegador-ALB usa HTTPS; RDS fuerza TLS para la conexión PostgreSQL.
 - S3 bloquea acceso público y deshabilita ACL. Solo el task role lee, escribe y borra en el prefijo autorizado.
-- Los secretos no se incluyen en código, imágenes, `tfvars`, outputs públicos ni logs. Secrets Manager inyecta una única credencial PostgreSQL en las tareas.
+- Los secretos no se incluyen en código, imágenes, `tfvars`, outputs públicos ni logs. Parameter Store guarda una única credencial PostgreSQL como `SecureString` estándar y ECS la inyecta en las tareas; no se configura rotación automática.
 - ALB, ECS y RDS se distribuyen entre dos zonas de disponibilidad. Liveness comprueba el proceso y readiness comprueba PostgreSQL con timeout corto.
-- CloudWatch centraliza los logs de ECS con retención explícita. Las alarmas quedan para una fase posterior.
-- Los recursos compatibles usan las etiquetas `Project`, `Environment` y `Owner`; el límite orientativo de gasto es 200 USD.
+- CloudWatch centraliza los logs de ECS durante 30 días y conserva métricas estándar y cinco alarmas; Container Insights queda desactivado.
+- S3 elimina versiones no actuales después de 30 días y ECR conserva las cinco imágenes más recientes, además de retirar las no etiquetadas a los 14 días.
+- Los recursos compatibles usan las etiquetas `Project`, `Environment` y `Owner`; el límite global orientativo es 200 USD y AWS Budgets avisa sobre un presupuesto operativo de 60 USD.
 
 ### Alternativas descartadas para esta versión
 
