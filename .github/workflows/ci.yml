@@ -53,6 +53,34 @@ jobs:
       - name: Restore
         run: dotnet restore GuardaCat.slnx
 
+      - name: Audit NuGet dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet list GuardaCat.slnx package \
+            --vulnerable \
+            --include-transitive \
+            --format json \
+            --no-restore \
+            > nuget-audit.json
+          vulnerability_count=$(jq '[.. | objects | select(.vulnerabilities? != null) | .vulnerabilities[]] | length' nuget-audit.json)
+          if [ "$vulnerability_count" -ne 0 ]; then
+            jq '.. | objects | select(.vulnerabilities? != null)' nuget-audit.json
+            exit 1
+          fi
+
+      - name: Scan repository for vulnerabilities, secrets and misconfigurations
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: sarif
+          output: trivy-filesystem.sarif
+
       - name: Build
         run: dotnet build GuardaCat.slnx --configuration Release --no-restore
 
@@ -82,6 +110,18 @@ jobs:
           set -euo pipefail
           test "$(docker image inspect "guardacat:${GITHUB_SHA}" --format '{{.Config.User}}')" = "1654"
 
+      - name: Scan container image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: guardacat:${{ github.sha }}
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: sarif
+          output: trivy-image.sarif
+
       - name: Validate Terraform
         working-directory: infra
         shell: bash
@@ -97,6 +137,18 @@ jobs:
         with:
           name: test-results
           path: TestResults/**/*.trx
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            nuget-audit.json
+            trivy-filesystem.sarif
+            trivy-image.sarif
           if-no-files-found: ignore
           retention-days: 14
 
