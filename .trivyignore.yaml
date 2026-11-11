@@ -11,3 +11,11 @@ misconfigurations:
     paths:
       - "infra/storage.tf"
     statement: The media bucket uses private SSE-S3 encryption; a customer-managed KMS key is outside the accepted project scope.
+  - id: AVD-AWS-0136
+    paths:
+      - "infra/monitoring.tf"
+    statement: The operations topic uses the AWS-managed SNS key; a customer-managed KMS key is outside the accepted project scope.
+  - id: AVD-AWS-0104
+    paths:
+      - "infra/network.tf"
+    statement: Tasks require public HTTPS access to regional AWS APIs without NAT or VPC endpoints; all-protocol egress is prohibited and database egress is security-group scoped.

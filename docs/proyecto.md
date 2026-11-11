@@ -144,7 +144,7 @@ Se descartaron EC2/Auto Scaling, EKS, Lambda/API Gateway, DynamoDB, microservici
 - Secretos excluidos de código, imagen, logs y ejemplos.
 - NuGet audita dependencias directas/transitivas.
 - Trivy analiza repositorio e imagen: vulnerabilidades, secretos y configuración; HIGH/CRITICAL no exceptuados bloquean CI.
-- `.trivyignore.yaml` registra tres excepciones acotadas: ALB público, subredes públicas y SSE-S3 sin CMK.
+- `.trivyignore.yaml` registra cinco excepciones acotadas: ALB y subredes públicas, HTTPS saliente, SSE-S3 y clave SNS administrada por AWS.
 
 ### IAM acreditado
 
