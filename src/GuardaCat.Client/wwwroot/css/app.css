@@ -331,7 +331,6 @@ h1[tabindex="-1"]:focus,
 .rail-context {
     margin: 20px 10px 0;
     padding-top: 18px;
-    border-top: 1px solid var(--gc-line);
     color: var(--gc-muted);
     font-size: 0.76rem;
     line-height: 1.55;
