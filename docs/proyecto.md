@@ -44,7 +44,7 @@ Veredicto: proyecto apto y funcional para entrega académica, con dos deudas for
 
 ## 3. Arquitectura actual
 
-El diagrama editable completo está en [architecture.excalidraw](architecture.excalidraw).
+El diagrama editable de la solución está en [architecture.excalidraw](architecture.excalidraw).
 
 ### Aplicación
 
@@ -144,7 +144,7 @@ Se descartaron EC2/Auto Scaling, EKS, Lambda/API Gateway, DynamoDB, microservici
 - Secretos excluidos de código, imagen, logs y ejemplos.
 - NuGet audita dependencias directas/transitivas.
 - Trivy analiza repositorio e imagen: vulnerabilidades, secretos y configuración; HIGH/CRITICAL no exceptuados bloquean CI.
-- `.trivyignore.yaml` registra cinco excepciones acotadas: ALB y subredes públicas, HTTPS saliente, SSE-S3 y clave SNS administrada por AWS.
+- `.trivyignore.yaml` registra cinco excepciones acotadas y justificadas: ALB público como entrada HTTPS, subredes públicas para evitar NAT, salida HTTPS hacia APIs AWS, SSE-S3 para el bucket privado y clave administrada por AWS para SNS. No se exceptúan vulnerabilidades HIGH/CRITICAL de la aplicación o la imagen.
 
 ### IAM acreditado
 
@@ -211,7 +211,7 @@ Pull requests no reciben credenciales AWS. El despliegue solo ocurre después de
 8. prueba `/api/health/live`, `/api/health/ready` y `/`;
 9. conserva `deployment-evidence.json`.
 
-La ejecución #11 es evidencia histórica válida para su commit. ECR conserva para `3dd845dc7d50e6130f1e3fe75a2f6eb1b1bdbf8f` el digest `sha256:f67314c87906c6521914ec702ae7258c4acf444797774318578f6b09bc3bcb6d`. La evidencia de entrega debe usar el run, `deployment-evidence.json` y digest asociados al SHA final publicado en `main`.
+La [ejecución #17, intento 2](https://github.com/pgimeno/guarda.cat/actions/runs/43074758050) es la evidencia de la revisión final. Publicó el commit `0460f9a9950e7b8106669e10b781054bcae866ef` con digest ECR `sha256:39be181c726f83b7f7e8cd5179dbb18341057512170f72b56a0c1b1a8ef594dc`, ejecutó la migración, registró las revisiones ECS `5`, estabilizó el servicio y superó los smoke tests. El artefacto `deployment-evidence-0460f9a9950e7b8106669e10b781054bcae866ef` conserva esos datos.
 
 ## 7. Trabajo realizado
 
@@ -222,21 +222,21 @@ La ejecución #11 es evidencia histórica válida para su commit. ECR conserva p
 5. Empaquetado local con dos réplicas, migración separada, proxy HTTPS y S3 compatible.
 6. Terraform: backend, DNS/ACM/SES, VPC, ALB, ECS, RDS, S3, IAM, SSM, CloudWatch, SNS y Budget.
 7. Primer despliegue manual: imagen, migración y dos tareas.
-8. CI de PR y CD automático; ejecución #11 correcta.
-9. Runbook, restauración PostgreSQL local y controles operativos.
+8. CI de PR y CD automático; ejecución final #17 correcta.
+9. Procedimiento de restauración PostgreSQL local y controles operativos.
 10. Seguridad CI: auditoría NuGet y Trivy.
 11. Auditoría AWS viva y consolidación de documentación final.
 
 ## 8. Evidencia actual
 
-Comprobado el 10/11/2026:
+Comprobado entre el 10 y el 11/11/2026:
 
 - `dotnet build -c Release`: correcto, 0 advertencias y 0 errores;
 - `terraform fmt -check -recursive`: correcto;
 - `terraform validate`: correcto;
 - NuGet vulnerable: 0 hallazgos;
-- imagen ECR de #11: digest `sha256:f67314c87906c6521914ec702ae7258c4acf444797774318578f6b09bc3bcb6d`;
-- producción `/`, `/live`, `/ready`: HTTP 200;
+- imagen ECR de #17: digest `sha256:39be181c726f83b7f7e8cd5179dbb18341057512170f72b56a0c1b1a8ef594dc`;
+- producción `/`, `/api/health/live`, `/api/health/ready`: HTTP 200;
 - ECS: ACTIVE, desired 2, running 2, rollout COMPLETED;
 - targets: dos, ambos healthy, uno en cada AZ;
 - capacidad actual: Spot en `eu-west-1a`, On-Demand en `eu-west-1b`;
@@ -246,7 +246,7 @@ Comprobado el 10/11/2026:
 - SNS: suscripción email confirmada;
 - Budget: 60 USD/mes.
 
-No se repitió localmente la suite de integración porque Docker/PostgreSQL no estaban disponibles. La ejecución CI asociada al SHA final publicado es la fuente de aceptación actual.
+La ejecución #17 compiló y ejecutó la suite de integración contra PostgreSQL 17. Esa ejecución, asociada al SHA final publicado, es la fuente de aceptación actual.
 
 ## 9. Operación y recuperación
 

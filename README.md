@@ -8,7 +8,7 @@ Plataforma comunitaria en catalán para publicar artículos en Markdown, leer co
 
 El proyecto cumple ampliamente el enunciado: aplicación funcional, Terraform, AWS, alta disponibilidad básica, backups, HTTPS, observabilidad, FinOps y despliegue automático desde `main`.
 
-Validación del 10/11/2026:
+Validación final del 11/11/2026:
 
 - compilación Release correcta: 0 errores y 0 advertencias;
 - configuración Terraform formateada y válida;
@@ -20,7 +20,7 @@ Validación del 10/11/2026:
 - cinco alarmas CloudWatch están activas y enlazadas a una suscripción SNS confirmada;
 - AWS Budgets mantiene un límite mensual de 60 USD.
 
-La [ejecución automática #11](https://github.com/pgimeno/guarda.cat/actions/runs/42711551949) acreditó el despliegue del commit `3dd845dc7d50e6130f1e3fe75a2f6eb1b1bdbf8f` y la imagen ECR `sha256:f67314c87906c6521914ec702ae7258c4acf444797774318578f6b09bc3bcb6d`: publicación, migración, actualización de ECS, estabilidad y smoke tests. Es evidencia de esa revisión, no de cambios posteriores.
+La [ejecución automática #17, intento 2](https://github.com/pgimeno/guarda.cat/actions/runs/43074758050) acreditó la revisión final: commit `0460f9a9950e7b8106669e10b781054bcae866ef`, imagen ECR `sha256:39be181c726f83b7f7e8cd5179dbb18341057512170f72b56a0c1b1a8ef594dc`, migración correcta, revisiones ECS `5`, servicio estable y smoke tests HTTPS superados.
 
 Dos controles formales siguen pendientes:
 
@@ -69,7 +69,7 @@ flowchart LR
 - S3 nunca es público. Las imágenes locales pasan por la aplicación para permitir revocación inmediata.
 - Una tarea Fargate On-Demand mantiene capacidad mínima; la segunda usa Spot para reducir coste.
 
-Diagrama editable detallado: [docs/architecture.excalidraw](docs/architecture.excalidraw).
+Diagrama editable: [docs/architecture.excalidraw](docs/architecture.excalidraw).
 
 ## Decisión arquitectónica
 

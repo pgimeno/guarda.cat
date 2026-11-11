@@ -114,7 +114,7 @@ Validar:
 
 El camino ordinario es un push a `main`. GitHub Actions publica la imagen SHA, ejecuta `--migrate`, actualiza ECS y hace smoke tests. El workflow no ejecuta `terraform apply`.
 
-La ejecución #11 acreditó ese flujo para el commit `3dd845d`. Cada entrega debe conservar el run y `deployment-evidence.json` asociados a su SHA final. Las credenciales actuales de GitHub proceden de un rol SSO con PowerUser y deben sustituirse por un rol mínimo, preferiblemente mediante OIDC.
+La [ejecución #17, intento 2](https://github.com/pgimeno/guarda.cat/actions/runs/43074758050) acreditó ese flujo para el commit final `0460f9a9950e7b8106669e10b781054bcae866ef`. Publicó el digest `sha256:39be181c726f83b7f7e8cd5179dbb18341057512170f72b56a0c1b1a8ef594dc` y generó `deployment-evidence.json`. Las credenciales actuales de GitHub proceden de un rol SSO con PowerUser y deben sustituirse por un rol mínimo, preferiblemente mediante OIDC.
 
 ## Parada y retirada
 
