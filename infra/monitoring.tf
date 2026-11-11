@@ -1,5 +1,6 @@
 resource "aws_sns_topic" "operations" {
-  name = "${local.name}-operations"
+  name              = "${local.name}-operations"
+  kms_master_key_id = "alias/aws/sns"
 }
 
 resource "aws_sns_topic_subscription" "operations_email" {

@@ -159,7 +159,7 @@ Resumen:
 
 Comandos y variables: [infra/README.md](infra/README.md).
 
-El pipeline restaura, audita NuGet, ejecuta Trivy, compila, prueba, verifica el publish, construye la imagen como usuario no root y valida Terraform. En producción publica por SHA, migra, actualiza ECS, espera estabilidad y ejecuta smoke tests.
+El pipeline restaura, audita NuGet, ejecuta Trivy, compila, prueba, verifica el publish, construye la imagen como usuario no root y valida Terraform. Las excepciones Trivy aceptadas quedan acotadas y justificadas en `.trivyignore.yaml`. En producción publica por SHA, migra, actualiza ECS, espera estabilidad y ejecuta smoke tests.
 
 ## Seguridad, disponibilidad y operación
 
@@ -169,6 +169,7 @@ El pipeline restaura, audita NuGet, ejecuta Trivy, compila, prueba, verifica el 
 - RDS privado, cifrado y con TLS obligatorio.
 - S3 privado, cifrado, versionado y restringido a `media/*`.
 - Secretos fuera del código: SSM y GitHub Secrets.
+- La salida de tareas ECS queda limitada a HTTPS y PostgreSQL hacia el SG de RDS.
 - Contenedor no root, UID 1654.
 - Logs ECS en CloudWatch durante 30 días.
 - Circuit breaker de ECS con rollback del artefacto; las migraciones no se revierten automáticamente.

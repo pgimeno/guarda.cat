@@ -124,7 +124,7 @@ PostgreSQL guarda Identity, contenido, perfiles, metadatos de medios, outbox y c
 | Sin CloudFront | Evita caché/invalidation y OAC en esta entrega. | No hay CDN. |
 | Outbox PostgreSQL | Coherencia sin SQS/Lambda. | Entrega al menos una vez; posible duplicado. |
 | Versionado S3 sin AWS Backup | Menor coste y complejidad. | No protege frente a pérdida de cuenta. |
-| Tareas públicas con SG | Evita NAT Gateway. | Egress amplio y dirección pública. |
+| Tareas públicas con SG | Evita NAT Gateway. | Dirección pública; egress limitado a HTTPS y PostgreSQL. |
 
 Se descartaron EC2/Auto Scaling, EKS, Lambda/API Gateway, DynamoDB, microservicios, Redis y cliente separado en S3/CloudFront porque añadían operación sin resolver mejor el MVP.
 
@@ -143,7 +143,8 @@ Se descartaron EC2/Auto Scaling, EKS, Lambda/API Gateway, DynamoDB, microservici
 - Contenedor no root, UID 1654.
 - Secretos excluidos de código, imagen, logs y ejemplos.
 - NuGet audita dependencias directas/transitivas.
-- Trivy analiza repositorio e imagen: vulnerabilidades, secretos y configuración; HIGH/CRITICAL bloquean CI.
+- Trivy analiza repositorio e imagen: vulnerabilidades, secretos y configuración; HIGH/CRITICAL no exceptuados bloquean CI.
+- `.trivyignore.yaml` registra tres excepciones acotadas: ALB público, subredes públicas y SSE-S3 sin CMK.
 
 ### IAM acreditado
 

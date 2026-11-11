@@ -1,0 +1,13 @@
+misconfigurations:
+  - id: AVD-AWS-0053
+    paths:
+      - "infra/edge.tf"
+    statement: The internet-facing ALB is the intended public HTTPS entry point; ECS only accepts traffic from its security group.
+  - id: AVD-AWS-0164
+    paths:
+      - "infra/network.tf"
+    statement: Public subnets and task public IPs are an accepted cost trade-off that avoids NAT; task ingress remains restricted to the ALB security group.
+  - id: AVD-AWS-0132
+    paths:
+      - "infra/storage.tf"
+    statement: The media bucket uses private SSE-S3 encryption; a customer-managed KMS key is outside the accepted project scope.
