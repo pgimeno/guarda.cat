@@ -78,6 +78,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           trivyignores: .trivyignore.yaml
+          limit-severities-for-sarif: true
           exit-code: 1
           format: sarif
           output: trivy-filesystem.sarif
@@ -119,6 +120,7 @@ jobs:
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          limit-severities-for-sarif: true
           exit-code: 1
           format: sarif
           output: trivy-image.sarif
